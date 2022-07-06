@@ -12,6 +12,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/replit/go-replidentity/api"
+	"github.com/replit/go-replidentity/paserk"
 )
 
 func verifyToken(token string, pubkey ed25519.PublicKey) ([]byte, error) {
@@ -43,8 +44,8 @@ func verifyTokenWithCert(token string, cert *api.GovalCert) ([]byte, error) {
 	var pubkey ed25519.PublicKey
 	var err error
 
-	if strings.HasPrefix(cert.PublicKey, PaserkPublicHeader) {
-		pubkey, err = PASERKPublicToPublicKey(PASERKPublic(cert.PublicKey))
+	if strings.HasPrefix(cert.PublicKey, paserk.PaserkPublicHeader) {
+		pubkey, err = paserk.PASERKPublicToPublicKey(paserk.PASERKPublic(cert.PublicKey))
 	} else {
 		pubkey, err = pemToPubkey(cert.PublicKey)
 	}
@@ -134,7 +135,7 @@ func verifyChain(token string, getPubKey PubKeySource) ([]byte, *api.GovalCert, 
 	}
 }
 
-// VerifyIdentity verifies that the given REPL_IDENTITY value is in fact signed by Goval's chain of authority
+// VerifyIdentity verifies that the given REPL_IDENTITY value is in fact signed by Goval's chain of authority.
 func VerifyIdentity(message string, getPubKey PubKeySource) (*api.GovalReplIdentity, error) {
 	bytes, _, err := verifyChain(message, getPubKey)
 	if err != nil {

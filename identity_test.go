@@ -1,4 +1,4 @@
-package main
+package replidentity_test
 
 import (
 	"fmt"
@@ -7,10 +7,10 @@ import (
 	"github.com/replit/go-replidentity"
 )
 
-func main() {
+func Example() {
 	identity := os.Getenv("REPL_IDENTITY")
 	if identity == "" {
-		fmt.Println("Sorry, this repl does not yet have an identity (rollout hasn't made it here yet).")
+		fmt.Println("Sorry, this repl does not yet have an identity (anonymous run?).")
 		return
 	}
 

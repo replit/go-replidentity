@@ -1,4 +1,11 @@
-package replidentity
+/*
+Package paserk contains implementations of
+[PASERK](https://github.com/paseto-standard/paserk), an extension to PASETO
+that allows for key sharing. These are not critical security-sensitive, so
+it's fine-ish to implement ourselves to avoid having to add one more
+dependency.
+*/
+package paserk
 
 import (
 	"encoding/base64"
@@ -11,12 +18,6 @@ import (
 
 	"github.com/replit/go-replidentity/api"
 )
-
-// This file contains implementations of
-// [PASERK](https://github.com/paseto-standard/paserk), an extension to PASETO
-// that allows for key sharing. These are not critical security-sensitive, so
-// it's fine-ish to implement ourselves to avoid having to add one more
-// dependency.
 
 const (
 	// PaserkPublicHeader is the header of a PASERK public key:
@@ -35,7 +36,7 @@ const (
 	// https://github.com/paseto-standard/paserk/blob/master/types/sid.md
 	PaserkPIDHeader = "k2.pid."
 
-	// PaserkGSAIDHeader is the header of a PASERK GovalSigningAuthority id. This
+	// PaserkGSAIDHeader is the header of a PASERK [api.GovalSigningAuthority] id. This
 	// is a replit extension to PASERK.
 	PaserkGSAIDHeader = "k2.gsaid."
 
@@ -46,20 +47,20 @@ const (
 	paserkSecretLength = 96
 )
 
-// PASERKPublic is the serialized version of an ed25519.PublicKey:
+// PASERKPublic is the serialized version of an [ed25519.PublicKey]:
 // https://github.com/paseto-standard/paserk/blob/master/types/public.md
 type PASERKPublic string
 
-// PASERKSecret is the serialized version of an ed25519.PrivateKey:
+// PASERKSecret is the serialized version of an [ed25519.PrivateKey]:
 // https://github.com/paseto-standard/paserk/blob/master/types/secret.md
 type PASERKSecret string
 
-// PublicKeyToPASERKPublic wraps an ed25519.PublicKey into its PASERK representation.
+// PublicKeyToPASERKPublic wraps an [ed25519.PublicKey] into its PASERK representation.
 func PublicKeyToPASERKPublic(pubkey ed25519.PublicKey) PASERKPublic {
 	return PASERKPublic(PaserkPublicHeader + base64.RawURLEncoding.EncodeToString(pubkey))
 }
 
-// PASERKPublicToPublicKey unwraps an ed25519.PublicKey from its PASERK representation.
+// PASERKPublicToPublicKey unwraps an [ed25519.PublicKey] from its PASERK representation.
 func PASERKPublicToPublicKey(encoded PASERKPublic) (ed25519.PublicKey, error) {
 	if !strings.HasPrefix(string(encoded), PaserkPublicHeader) {
 		return nil, fmt.Errorf("%q does not have the %q header", encoded, PaserkPublicHeader)
@@ -74,12 +75,12 @@ func PASERKPublicToPublicKey(encoded PASERKPublic) (ed25519.PublicKey, error) {
 	return ed25519.PublicKey(rawKeyData), nil
 }
 
-// PrivateKeyToPASERKSecret wraps an ed25519.PrivateKey into its PASERK representation.
+// PrivateKeyToPASERKSecret wraps an [ed25519.PrivateKey] into its PASERK representation.
 func PrivateKeyToPASERKSecret(privkey ed25519.PrivateKey) PASERKSecret {
 	return PASERKSecret(PaserkSecretHeader + base64.RawURLEncoding.EncodeToString(privkey))
 }
 
-// PASERKSecretToPrivateKey unwraps an ed25519.PrivateKey from its PASERK representation.
+// PASERKSecretToPrivateKey unwraps an [ed25519.PrivateKey] from its PASERK representation.
 func PASERKSecretToPrivateKey(encoded PASERKSecret) (ed25519.PrivateKey, error) {
 	if !strings.HasPrefix(string(encoded), PaserkSecretHeader) {
 		return nil, fmt.Errorf("%q does not have the %q header", encoded, PaserkSecretHeader)
@@ -106,19 +107,19 @@ func paserkID(header, data string) string {
 	return header + base64.RawURLEncoding.EncodeToString(h.Sum(nil))
 }
 
-// PaserkPID returns the PASERK ID of an ed25519.PublicKey:
+// PaserkPID returns the PASERK ID of an [ed25519.PublicKey]:
 // https://github.com/paseto-standard/paserk/blob/master/types/pid.md
 func PaserkPID(pubkey ed25519.PublicKey) string {
 	return paserkID(PaserkPIDHeader, string(PublicKeyToPASERKPublic(pubkey)))
 }
 
-// PaserkSID returns the PASERK ID of an ed25519.PrivateKey:
+// PaserkSID returns the PASERK ID of an [ed25519.PrivateKey]:
 // https://github.com/paseto-standard/paserk/blob/master/types/sid.md
 func PaserkSID(privkey ed25519.PrivateKey) string {
 	return paserkID(PaserkSIDHeader, string(PrivateKeyToPASERKSecret(privkey)))
 }
 
-// PaserkGSAID returns the PASERK ID of a GovalSigningAuthority. This is a Replit
+// PaserkGSAID returns the PASERK ID of a [api.GovalSigningAuthority]. This is a Replit
 // extension to PASERK.
 func PaserkGSAID(authority *api.GovalSigningAuthority) string {
 	serializedCertProto, err := proto.Marshal(authority)
