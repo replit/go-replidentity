@@ -1,10 +1,8 @@
-/*
-Package paserk contains implementations of
-[PASERK](https://github.com/paseto-standard/paserk), an extension to PASETO
-that allows for key sharing. These are not critical security-sensitive, so
-it's fine-ish to implement ourselves to avoid having to add one more
-dependency.
-*/
+// Package paserk contains implementations of
+// [PASERK](https://github.com/paseto-standard/paserk), an extension to PASETO
+// that allows for key sharing. These are not critical security-sensitive, so
+// it's fine-ish to implement ourselves to avoid having to add one more
+// dependency.
 package paserk
 
 import (
