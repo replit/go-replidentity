@@ -12,7 +12,7 @@ import (
 	"github.com/replit/go-replidentity/api"
 )
 
-// PubKeySource provides an interface for looking up a public key from some external source.
+// PubKeySource provides an interface for looking up an [ed25519.PublicKey] from some external source.
 type PubKeySource func(keyid, issuer string) (ed25519.PublicKey, error)
 
 // MessageClaims is a collection of indexable claims that are made by a certificate.
