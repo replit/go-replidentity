@@ -10,10 +10,10 @@ SUBDIRS := examples
 ./api/.proto.stamp: api/client.pb.go api/signing.pb.go
 	touch $@
 
-main: 
+main: ./api/.proto.stamp
 	go build .
 
-test:
+test: ./api/.proto.stamp
 	go test .
 
 all: *.go ./api/.proto.stamp examples

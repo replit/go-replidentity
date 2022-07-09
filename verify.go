@@ -79,11 +79,38 @@ func verifyCert(certBytes []byte, signingCert *api.GovalCert) (*api.GovalCert, e
 
 		// Verify the cert claims agrees with its signer
 		authorizedClaims := map[string]struct{}{}
+		var anyReplid, anyUser, anyCluster bool
 		for _, claim := range signingCert.Claims {
 			authorizedClaims[claim.String()] = struct{}{}
+			switch tc := claim.Claim.(type) {
+			case *api.CertificateClaim_Flag:
+				if tc.Flag == api.FlagClaim_ANY_REPLID {
+					anyReplid = true
+				}
+				if tc.Flag == api.FlagClaim_ANY_USER {
+					anyUser = true
+				}
+				if tc.Flag == api.FlagClaim_ANY_CLUSTER {
+					anyCluster = true
+				}
+			}
 		}
 
 		for _, claim := range cert.Claims {
+			switch claim.Claim.(type) {
+			case *api.CertificateClaim_Replid:
+				if anyReplid {
+					continue
+				}
+			case *api.CertificateClaim_User:
+				if anyUser {
+					continue
+				}
+			case *api.CertificateClaim_Cluster:
+				if anyCluster {
+					continue
+				}
+			}
 			if _, ok := authorizedClaims[claim.String()]; !ok {
 				return nil, fmt.Errorf("signing cert does not authorize claim: %s", claim)
 			}
@@ -135,8 +162,10 @@ func verifyChain(token string, getPubKey PubKeySource) ([]byte, *api.GovalCert, 
 	}
 }
 
-// VerifyIdentity verifies that the given REPL_IDENTITY value is in fact signed by Goval's chain of authority.
-func VerifyIdentity(message string, getPubKey PubKeySource) (*api.GovalReplIdentity, error) {
+// VerifyIdentity verifies that the given `REPL_IDENTITY` value is in fact
+// signed by Goval's chain of authority, and addressed to the provided audience
+// (the `REPL_ID` of the recipient).
+func VerifyIdentity(message string, audience string, getPubKey PubKeySource) (*api.GovalReplIdentity, error) {
 	bytes, _, err := verifyChain(message, getPubKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed verify message: %w", err)
@@ -157,6 +186,10 @@ func VerifyIdentity(message string, getPubKey PubKeySource) (*api.GovalReplIdent
 		if err != nil {
 			return nil, fmt.Errorf("failed to decode body: %w", err)
 		}
+	}
+
+	if audience != identity.Aud {
+		return nil, fmt.Errorf("message identity mismatch. expected %q, got %q", audience, identity.Aud)
 	}
 
 	// TODO(miselin): need to check claims? and authority expiry?
