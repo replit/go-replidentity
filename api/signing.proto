@@ -44,6 +44,27 @@ enum FlagClaim {
   // Cert has the authority to sign additional intermediate certs. (The claims
   // on intermediate certs signed by this cert are still enforced.)
   SIGN_INTERMEDIATE_CERT = 1;
+
+  // Cert has the authority to sign GovalToken messages that can prove identity.
+  IDENTITY = 5;
+
+  // Cert has the authority to sign ReplToken messages for any ReplID. If this
+  // claim is not set, the cert will only be able to emit tokens only for the
+  // list explicitly enumerated by the other claims. If that list is empty, the
+  // cert has no ability to sign any tokens.
+  ANY_REPLID = 2;
+
+  // Cert has the authority to sign ReplToken messages for any user. If this
+  // claim is not set, the cert will only be able to emit tokens only for the
+  // list explicitly enumerated by the other claims. If that list is empty, the
+  // cert has no ability to sign any tokens.
+  ANY_USER = 3;
+
+  // Cert has the authority to sign ReplToken messages for any cluster. If this
+  // claim is not set, the cert will only be able to emit tokens only for the
+  // list explicitly enumerated by the other claims. If that list is empty, the
+  // cert has no ability to sign any tokens.
+  ANY_CLUSTER = 4;
 }
 
 // Claims are actions that a cert is allowed to do. Claims can be repeated (e.g.
@@ -64,6 +85,8 @@ message CertificateClaim {
     string replid = 1;
     // This cert has the authority to sign messages on behalf of a user
     string user = 2;
+    // This cert has the authority to sign messages in a certain cluster
+    string cluster = 4;
     // This cert has the authority to perform an action as described in FlagClaim
     FlagClaim flag = 3;
   }
@@ -107,9 +130,9 @@ message GovalCert {
   repeated CertificateClaim claims = 3;
 
   // The PASETO `v2.public` (Ed25519) public key authorized to sign requests in
-  // this scope. Must be encoded in a PEM PUBLIC KEY block.
-  // (This key is usally generated in nodejs, and nodejs does not provide an
-  // interface to get the raw key bytes)
+  // this scope. Must be encoded in either PASERK SID or a PEM PUBLIC KEY
+  // block.  (This key is usally generated in nodejs, and nodejs does not
+  // provide an interface to get the raw key bytes)
   string publicKey = 4;
 }
 
@@ -135,6 +158,9 @@ message GovalToken {
   oneof Token {
     // This token is used to authorize a request to create a repl in goval
     ReplToken repl_token = 4;
+
+    // This token is used to prove a Repl's identity.
+    GovalReplIdentity repl_identity = 5;
   }
 }
 
@@ -147,4 +173,7 @@ message GovalReplIdentity {
   string user = 2;
   // This repl has this slug
   string slug = 3;
+  // If set, this token can only be consumed by this a Repl with this Repl ID.
+  // Equivalent to JWT's "aud" (Audience) claim.
+  string aud = 4;
 }
