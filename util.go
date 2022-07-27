@@ -37,3 +37,37 @@ func ReadPublicKeyFromEnv(keyid, issuer string) (ed25519.PublicKey, error) {
 
 	return ed25519.PublicKey(keyBytes), nil
 }
+
+// CreateIdentityTokenAddressedTo returns a Replit identity token that proves this Repl's identity
+// that includes an audience claim to restrict forwarding.
+func CreateIdentityTokenAddressedTo(audience string) (string, error) {
+	if os.Getenv("REPL_OWNER") == "five-nine" {
+		return "", fmt.Errorf("not logged into Replit, no identity present")
+	}
+
+	identitySigningAuthorityToken := os.Getenv("REPL_IDENTITY")
+	if identitySigningAuthorityToken == "" {
+		return "", fmt.Errorf("no REPL_IDENTITY env var present")
+	}
+	identitySigningAuthorityKey := os.Getenv("REPL_IDENTITY_KEY")
+	if identitySigningAuthorityKey == "" {
+		return "", fmt.Errorf("no REPL_IDENTITY_KEY env var present")
+	}
+
+	signingAuthority, err := NewSigningAuthority(
+		identitySigningAuthorityKey,
+		identitySigningAuthorityToken,
+		os.Getenv("REPL_ID"),
+		ReadPublicKeyFromEnv,
+	)
+	if err != nil {
+		return "", err
+	}
+
+	identityToken, err := signingAuthority.Sign(audience)
+	if err != nil {
+		return "", err
+	}
+
+	return identityToken, nil
+}
