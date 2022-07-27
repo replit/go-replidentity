@@ -38,30 +38,41 @@ func ReadPublicKeyFromEnv(keyid, issuer string) (ed25519.PublicKey, error) {
 	return ed25519.PublicKey(keyBytes), nil
 }
 
-// CreateIdentityTokenAddressedTo returns a Replit identity token that proves this Repl's identity
-// that includes an audience claim to restrict forwarding.
-func CreateIdentityTokenAddressedTo(audience string) (string, error) {
+// CreateIdentityTokenSigningAuthority creates a signing authority with this repl's identity key.
+func CreateIdentityTokenSigningAuthority() (*SigningAuthority, error) {
 	if os.Getenv("REPL_OWNER") == "five-nine" {
-		return "", fmt.Errorf("not logged into Replit, no identity present")
+		return nil, fmt.Errorf("not logged into Replit, no identity present")
 	}
 
 	identitySigningAuthorityToken := os.Getenv("REPL_IDENTITY")
 	if identitySigningAuthorityToken == "" {
-		return "", fmt.Errorf("no REPL_IDENTITY env var present")
+		return nil, fmt.Errorf("no REPL_IDENTITY env var present")
 	}
 	identitySigningAuthorityKey := os.Getenv("REPL_IDENTITY_KEY")
 	if identitySigningAuthorityKey == "" {
-		return "", fmt.Errorf("no REPL_IDENTITY_KEY env var present")
+		return nil, fmt.Errorf("no REPL_IDENTITY_KEY env var present")
 	}
 
-	signingAuthority, err := NewSigningAuthority(
+	return NewSigningAuthority(
 		identitySigningAuthorityKey,
 		identitySigningAuthorityToken,
 		os.Getenv("REPL_ID"),
 		ReadPublicKeyFromEnv,
 	)
+}
+
+// CreateIdentityTokenAddressedTo returns a Replit identity token that proves this Repl's identity
+// that includes an audience claim to restrict forwarding. It creates a new signing authority each
+// time, which can be slow. If you plan on signing multiple tokens, use
+// CreateIdentityTokenSigningAuthority() to create an authority to sign with.
+func CreateIdentityTokenAddressedTo(audience string) (string, error) {
+	signingAuthority, err := CreateIdentityTokenSigningAuthority()
 	if err != nil {
 		return "", err
+	}
+
+	if signingAuthority == nil {
+		return "", fmt.Errorf("no signing authority could be created")
 	}
 
 	identityToken, err := signingAuthority.Sign(audience)
