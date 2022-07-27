@@ -37,3 +37,48 @@ func ReadPublicKeyFromEnv(keyid, issuer string) (ed25519.PublicKey, error) {
 
 	return ed25519.PublicKey(keyBytes), nil
 }
+
+// CreateIdentityTokenSigningAuthority creates a signing authority with this repl's identity key.
+func CreateIdentityTokenSigningAuthority() (*SigningAuthority, error) {
+	if os.Getenv("REPL_OWNER") == "five-nine" {
+		return nil, fmt.Errorf("not logged into Replit, no identity present")
+	}
+
+	identitySigningAuthorityToken := os.Getenv("REPL_IDENTITY")
+	if identitySigningAuthorityToken == "" {
+		return nil, fmt.Errorf("no REPL_IDENTITY env var present")
+	}
+	identitySigningAuthorityKey := os.Getenv("REPL_IDENTITY_KEY")
+	if identitySigningAuthorityKey == "" {
+		return nil, fmt.Errorf("no REPL_IDENTITY_KEY env var present")
+	}
+
+	return NewSigningAuthority(
+		identitySigningAuthorityKey,
+		identitySigningAuthorityToken,
+		os.Getenv("REPL_ID"),
+		ReadPublicKeyFromEnv,
+	)
+}
+
+// CreateIdentityTokenAddressedTo returns a Replit identity token that proves this Repl's identity
+// that includes an audience claim to restrict forwarding. It creates a new signing authority each
+// time, which can be slow. If you plan on signing multiple tokens, use
+// CreateIdentityTokenSigningAuthority() to create an authority to sign with.
+func CreateIdentityTokenAddressedTo(audience string) (string, error) {
+	signingAuthority, err := CreateIdentityTokenSigningAuthority()
+	if err != nil {
+		return "", err
+	}
+
+	if signingAuthority == nil {
+		return "", fmt.Errorf("no signing authority could be created")
+	}
+
+	identityToken, err := signingAuthority.Sign(audience)
+	if err != nil {
+		return "", err
+	}
+
+	return identityToken, nil
+}
