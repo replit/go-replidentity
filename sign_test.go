@@ -168,3 +168,49 @@ func TestIdentity(t *testing.T) {
 	assert.Equal(t, "user", replIdentity.User)
 	assert.Equal(t, "slug", replIdentity.Slug)
 }
+
+func TestLayeredIdentity(t *testing.T) {
+	layeredReplIdentity := api.GovalReplIdentity{
+		Replid: "a-b-c-d",
+		User:   "spoof",
+		Slug:   "spoofed",
+		Aud:    "another-audience",
+	}
+
+	privkey, identity, err := identityToken("repl", "user", "slug")
+	require.NoError(t, err)
+
+	getPubKey := func(keyid, issuer string) (ed25519.PublicKey, error) {
+		if keyid != developmentKeyID {
+			return nil, nil
+		}
+		keyBytes, err := base64.StdEncoding.DecodeString(developmentPublicKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse public key as base64: %w", err)
+		}
+
+		return ed25519.PublicKey(keyBytes), nil
+	}
+
+	signingAuthority, err := NewSigningAuthority(
+		string(paserk.PrivateKeyToPASERKSecret(privkey)),
+		identity,
+		"repl",
+		getPubKey,
+	)
+	require.NoError(t, err)
+
+	// generate yet another layer using our key
+	token, err := signIdentity(privkey, signingAuthority.signingAuthority, &layeredReplIdentity)
+	require.NoError(t, err)
+
+	_, err = VerifyIdentity(
+		token,
+		// the audience claim mismatch fails too early. we need to make sure we don't trust
+		// the wrong level of replid/user/slug, because another repl could use its private
+		// key to sign a spoofed identity with a "valid" audience.
+		"another-audience",
+		getPubKey,
+	)
+	require.Error(t, err)
+}
