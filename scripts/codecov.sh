@@ -12,7 +12,7 @@ BUILD="-b $SEMAPHORE_JOB_ID"
 NAME="-n '$SEMAPHORE_JOB_NAME'"
 
 # Are we in a PR context? The variables are wrong if so.
-if [ "x$SEMAPHORE_GIT_REF_TYPE" == "xpull-request" ]; then
+if [[ "$SEMAPHORE_GIT_REF_TYPE" == "pull-request" ]]; then
     echo "codecov wrapper: this appears to be a PR named '$SEMAPHORE_GIT_PR_NAME', setting params accordingly..."
 fi
 
