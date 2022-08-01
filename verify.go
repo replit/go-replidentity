@@ -172,6 +172,12 @@ func (v *verifier) verifyChain(token string, getPubKey PubKeySource) ([]byte, *a
 	}
 }
 
+// easy entry-point so you don't need to create a verifier yourself
+func verifyChain(token string, getPubKey PubKeySource) ([]byte, *api.GovalCert, error) {
+	v := verifier{}
+	return v.verifyChain(token, getPubKey)
+}
+
 // checkClaimsAgainstToken ensures the claims match up with the token.
 // This ensures that the final token in the chain is not spoofed via the forwarding protection private key.
 func (v *verifier) checkClaimsAgainstToken(token *api.GovalReplIdentity) error {
@@ -188,9 +194,7 @@ func (v *verifier) checkClaimsAgainstToken(token *api.GovalReplIdentity) error {
 // signed by Goval's chain of authority, and addressed to the provided audience
 // (the `REPL_ID` of the recipient).
 func VerifyIdentity(message string, audience string, getPubKey PubKeySource) (*api.GovalReplIdentity, error) {
-	v := verifier{}
-
-	bytes, _, err := v.verifyChain(message, getPubKey)
+	bytes, _, err := verifyChain(message, getPubKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed verify message: %w", err)
 	}

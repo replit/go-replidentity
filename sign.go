@@ -32,9 +32,7 @@ func NewSigningAuthority(
 	replid string,
 	getPubKey PubKeySource,
 ) (*SigningAuthority, error) {
-	v := verifier{}
-
-	bytes, _, err := v.verifyChain(marshaledIdentity, getPubKey)
+	bytes, _, err := verifyChain(marshaledIdentity, getPubKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed verify message: %w", err)
 	}
