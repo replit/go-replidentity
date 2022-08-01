@@ -17,6 +17,11 @@ import (
 
 type verifier struct {
 	claims *MessageClaims
+
+	// signing certs can allow "any *" variants
+	anyReplid  bool
+	anyUser    bool
+	anyCluster bool
 }
 
 func (v *verifier) verifyToken(token string, pubkey ed25519.PublicKey) ([]byte, error) {
@@ -101,7 +106,11 @@ func (v *verifier) verifyCert(certBytes []byte, signingCert *api.GovalCert) (*ap
 		}
 
 		for _, claim := range cert.Claims {
-			switch claim.Claim.(type) {
+			switch tc := claim.Claim.(type) {
+			case *api.CertificateClaim_Flag:
+				v.anyReplid = tc.Flag == api.FlagClaim_ANY_REPLID
+				v.anyUser = tc.Flag == api.FlagClaim_ANY_USER
+				v.anyCluster = tc.Flag == api.FlagClaim_ANY_CLUSTER
 			case *api.CertificateClaim_Replid:
 				if anyReplid {
 					continue
@@ -173,9 +182,14 @@ func (v *verifier) verifyChain(token string, getPubKey PubKeySource) ([]byte, *a
 }
 
 // easy entry-point so you don't need to create a verifier yourself
-func verifyChain(token string, getPubKey PubKeySource) ([]byte, *api.GovalCert, error) {
+func verifyChain(token string, getPubKey PubKeySource) (*verifier, []byte, *api.GovalCert, error) {
 	v := verifier{}
-	return v.verifyChain(token, getPubKey)
+	bytes, cert, err := v.verifyChain(token, getPubKey)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	return &v, bytes, cert, err
 }
 
 // checkClaimsAgainstToken ensures the claims match up with the token.
@@ -187,14 +201,14 @@ func (v *verifier) checkClaimsAgainstToken(token *api.GovalReplIdentity) error {
 		return nil
 	}
 
-	return verifyRawClaims(token.Replid, token.User, "", v.claims)
+	return verifyRawClaims(token.Replid, token.User, "", v.claims, v.anyReplid, v.anyUser, v.anyCluster)
 }
 
 // VerifyIdentity verifies that the given `REPL_IDENTITY` value is in fact
 // signed by Goval's chain of authority, and addressed to the provided audience
 // (the `REPL_ID` of the recipient).
 func VerifyIdentity(message string, audience string, getPubKey PubKeySource) (*api.GovalReplIdentity, error) {
-	bytes, _, err := verifyChain(message, getPubKey)
+	v, bytes, _, err := verifyChain(message, getPubKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed verify message: %w", err)
 	}
@@ -228,21 +242,21 @@ func VerifyIdentity(message string, audience string, getPubKey PubKeySource) (*a
 	return &identity, nil
 }
 
-func verifyRawClaims(replid, user, cluster string, claims *MessageClaims) error {
+func verifyRawClaims(replid, user, cluster string, claims *MessageClaims, anyReplid, anyUser, anyCluster bool) error {
 	if claims != nil {
-		if replid != "" {
+		if replid != "" && !anyReplid {
 			if _, ok := claims.Repls[replid]; !ok {
 				return errors.New("not authorized (replid)")
 			}
 		}
 
-		if user != "" {
+		if user != "" && !anyUser {
 			if _, ok := claims.Users[user]; !ok {
 				return errors.New("not authorized (user)")
 			}
 		}
 
-		if cluster != "" {
+		if cluster != "" && !anyCluster {
 			if _, ok := claims.Clusters[cluster]; !ok {
 				return errors.New("not authorized (cluster)")
 			}
@@ -261,5 +275,5 @@ func verifyClaims(iat time.Time, exp time.Time, replid, user, cluster string, cl
 		return fmt.Errorf("expired %s ago", time.Since(exp))
 	}
 
-	return verifyRawClaims(replid, user, cluster, claims)
+	return verifyRawClaims(replid, user, cluster, claims, false, false, false)
 }
