@@ -28,10 +28,11 @@ blocks:
       prologue:
         commands:
           - checkout
+          - ./scripts/install_codecov.sh
           - sem-version go 1.17
           - go mod download
       jobs:
         - name: run tests
           commands:
-            - go test -cover -covermode=atomic
+            - go test -cover -covermode=atomic -coverprofile coverage.out
     dependencies: []
