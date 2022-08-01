@@ -15,7 +15,16 @@ import (
 	"github.com/replit/go-replidentity/paserk"
 )
 
-func verifyToken(token string, pubkey ed25519.PublicKey) ([]byte, error) {
+type verifier struct {
+	claims *MessageClaims
+
+	// signing certs can allow "any *" variants
+	anyReplid  bool
+	anyUser    bool
+	anyCluster bool
+}
+
+func (v *verifier) verifyToken(token string, pubkey ed25519.PublicKey) ([]byte, error) {
 	var meta string
 
 	err := paseto.NewV2().Verify(token, pubkey, &meta, nil)
@@ -31,16 +40,16 @@ func verifyToken(token string, pubkey ed25519.PublicKey) ([]byte, error) {
 	return bytes, nil
 }
 
-func verifyTokenWithKeyID(token string, keyid string, issuer string, getPubKey PubKeySource) ([]byte, error) {
+func (v *verifier) verifyTokenWithKeyID(token string, keyid string, issuer string, getPubKey PubKeySource) ([]byte, error) {
 	pubkey, err := getPubKey(keyid, issuer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get pubkey %s: %w", keyid, err)
 	}
 
-	return verifyToken(token, pubkey)
+	return v.verifyToken(token, pubkey)
 }
 
-func verifyTokenWithCert(token string, cert *api.GovalCert) ([]byte, error) {
+func (v *verifier) verifyTokenWithCert(token string, cert *api.GovalCert) ([]byte, error) {
 	var pubkey ed25519.PublicKey
 	var err error
 
@@ -53,10 +62,10 @@ func verifyTokenWithCert(token string, cert *api.GovalCert) ([]byte, error) {
 		return nil, fmt.Errorf("failed to decode public key: %w", err)
 	}
 
-	return verifyToken(token, pubkey)
+	return v.verifyToken(token, pubkey)
 }
 
-func verifyCert(certBytes []byte, signingCert *api.GovalCert) (*api.GovalCert, error) {
+func (v *verifier) verifyCert(certBytes []byte, signingCert *api.GovalCert) (*api.GovalCert, error) {
 	var cert api.GovalCert
 	err := proto.Unmarshal(certBytes, &cert)
 	if err != nil {
@@ -64,7 +73,7 @@ func verifyCert(certBytes []byte, signingCert *api.GovalCert) (*api.GovalCert, e
 	}
 
 	// Verify that the cert is valid
-	err = verifyClaims(cert.Iat.AsTime(), cert.Exp.AsTime(), "", nil)
+	err = verifyClaims(cert.Iat.AsTime(), cert.Exp.AsTime(), "", "", "", nil)
 	if err != nil {
 		return nil, fmt.Errorf("cert is not valid: %w", err)
 	}
@@ -97,7 +106,11 @@ func verifyCert(certBytes []byte, signingCert *api.GovalCert) (*api.GovalCert, e
 		}
 
 		for _, claim := range cert.Claims {
-			switch claim.Claim.(type) {
+			switch tc := claim.Claim.(type) {
+			case *api.CertificateClaim_Flag:
+				v.anyReplid = tc.Flag == api.FlagClaim_ANY_REPLID
+				v.anyUser = tc.Flag == api.FlagClaim_ANY_USER
+				v.anyCluster = tc.Flag == api.FlagClaim_ANY_CLUSTER
 			case *api.CertificateClaim_Replid:
 				if anyReplid {
 					continue
@@ -117,10 +130,16 @@ func verifyCert(certBytes []byte, signingCert *api.GovalCert) (*api.GovalCert, e
 		}
 	}
 
+	// Store this cert's claims so we can validate tokens later.
+	certClaims := parseClaims(&cert)
+	if certClaims != nil {
+		v.claims = certClaims
+	}
+
 	return &cert, nil
 }
 
-func verifyChain(token string, getPubKey PubKeySource) ([]byte, *api.GovalCert, error) {
+func (v *verifier) verifyChain(token string, getPubKey PubKeySource) ([]byte, *api.GovalCert, error) {
 	signingAuthority, err := getSigningAuthority(token)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get authority: %w", err)
@@ -129,7 +148,7 @@ func verifyChain(token string, getPubKey PubKeySource) ([]byte, *api.GovalCert, 
 	switch signingAuth := signingAuthority.Cert.(type) {
 	case *api.GovalSigningAuthority_KeyId:
 		// If it's signed directly with a root key, grab the pubkey and verify it
-		verifiedBytes, err := verifyTokenWithKeyID(token, signingAuth.KeyId, signingAuthority.Issuer, getPubKey)
+		verifiedBytes, err := v.verifyTokenWithKeyID(token, signingAuth.KeyId, signingAuthority.Issuer, getPubKey)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to verify root signiture: %w", err)
 		}
@@ -138,19 +157,19 @@ func verifyChain(token string, getPubKey PubKeySource) ([]byte, *api.GovalCert, 
 
 	case *api.GovalSigningAuthority_SignedCert:
 		// If its signed by another token, verify the other token first
-		signingBytes, skipLevelCert, err := verifyChain(signingAuth.SignedCert, getPubKey)
+		signingBytes, skipLevelCert, err := v.verifyChain(signingAuth.SignedCert, getPubKey)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to verify signing token: %w", err)
 		}
 
 		// Make sure the two parent certs agree
-		signingCert, err := verifyCert(signingBytes, skipLevelCert)
+		signingCert, err := v.verifyCert(signingBytes, skipLevelCert)
 		if err != nil {
 			return nil, nil, fmt.Errorf("signing cert invalid: %w", err)
 		}
 
 		// Now verify this token using the parent cert
-		verifiedBytes, err := verifyTokenWithCert(token, signingCert)
+		verifiedBytes, err := v.verifyTokenWithCert(token, signingCert)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to verify token: %w", err)
 		}
@@ -162,11 +181,34 @@ func verifyChain(token string, getPubKey PubKeySource) ([]byte, *api.GovalCert, 
 	}
 }
 
+// easy entry-point so you don't need to create a verifier yourself
+func verifyChain(token string, getPubKey PubKeySource) (*verifier, []byte, *api.GovalCert, error) {
+	v := verifier{}
+	bytes, cert, err := v.verifyChain(token, getPubKey)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	return &v, bytes, cert, err
+}
+
+// checkClaimsAgainstToken ensures the claims match up with the token.
+// This ensures that the final token in the chain is not spoofed via the forwarding protection private key.
+func (v *verifier) checkClaimsAgainstToken(token *api.GovalReplIdentity) error {
+	// if the claims are nil, it means that the token was signed by the root privkey,
+	// which implicitly has all claims.
+	if v.claims == nil {
+		return nil
+	}
+
+	return verifyRawClaims(token.Replid, token.User, "", v.claims, v.anyReplid, v.anyUser, v.anyCluster)
+}
+
 // VerifyIdentity verifies that the given `REPL_IDENTITY` value is in fact
 // signed by Goval's chain of authority, and addressed to the provided audience
 // (the `REPL_ID` of the recipient).
 func VerifyIdentity(message string, audience string, getPubKey PubKeySource) (*api.GovalReplIdentity, error) {
-	bytes, _, err := verifyChain(message, getPubKey)
+	v, bytes, _, err := verifyChain(message, getPubKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed verify message: %w", err)
 	}
@@ -192,11 +234,39 @@ func VerifyIdentity(message string, audience string, getPubKey PubKeySource) (*a
 		return nil, fmt.Errorf("message identity mismatch. expected %q, got %q", audience, identity.Aud)
 	}
 
-	// TODO(miselin): need to check claims? and authority expiry?
+	err = v.checkClaimsAgainstToken(&identity)
+	if err != nil {
+		return nil, fmt.Errorf("claim mismatch: %w", err)
+	}
+
 	return &identity, nil
 }
 
-func verifyClaims(iat time.Time, exp time.Time, replid string, claims *MessageClaims) error {
+func verifyRawClaims(replid, user, cluster string, claims *MessageClaims, anyReplid, anyUser, anyCluster bool) error {
+	if claims != nil {
+		if replid != "" && !anyReplid {
+			if _, ok := claims.Repls[replid]; !ok {
+				return errors.New("not authorized (replid)")
+			}
+		}
+
+		if user != "" && !anyUser {
+			if _, ok := claims.Users[user]; !ok {
+				return errors.New("not authorized (user)")
+			}
+		}
+
+		if cluster != "" && !anyCluster {
+			if _, ok := claims.Clusters[cluster]; !ok {
+				return errors.New("not authorized (cluster)")
+			}
+		}
+	}
+
+	return nil
+}
+
+func verifyClaims(iat time.Time, exp time.Time, replid, user, cluster string, claims *MessageClaims) error {
 	if iat.After(time.Now()) {
 		return fmt.Errorf("not valid for %s", time.Until(iat))
 	}
@@ -205,17 +275,5 @@ func verifyClaims(iat time.Time, exp time.Time, replid string, claims *MessageCl
 		return fmt.Errorf("expired %s ago", time.Since(exp))
 	}
 
-	if claims != nil {
-		authorized := false
-
-		if _, ok := claims.Repls[replid]; ok {
-			authorized = true
-		}
-
-		if !authorized {
-			return errors.New("not authorized")
-		}
-	}
-
-	return nil
+	return verifyRawClaims(replid, user, cluster, claims, false, false, false)
 }

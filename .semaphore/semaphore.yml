@@ -16,7 +16,7 @@ auto_cancel:
 
 global_job_config:
   secrets:
-    - name: codecov
+    - name: codecov-go-replidentity
   epilogue:
     always:
       commands:

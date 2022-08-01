@@ -32,7 +32,7 @@ func NewSigningAuthority(
 	replid string,
 	getPubKey PubKeySource,
 ) (*SigningAuthority, error) {
-	bytes, _, err := verifyChain(marshaledIdentity, getPubKey)
+	v, bytes, _, err := verifyChain(marshaledIdentity, getPubKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed verify message: %w", err)
 	}
@@ -55,6 +55,11 @@ func NewSigningAuthority(
 		if err != nil {
 			return nil, fmt.Errorf("failed to decode body: %w", err)
 		}
+	}
+
+	err = v.checkClaimsAgainstToken(&identity)
+	if err != nil {
+		return nil, fmt.Errorf("claim mismatch: %w", err)
 	}
 
 	if replid != identity.Replid {
