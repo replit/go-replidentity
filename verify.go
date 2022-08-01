@@ -16,7 +16,7 @@ import (
 )
 
 type verifier struct {
-	currentClaims *MessageClaims
+	claims *MessageClaims
 }
 
 func (v *verifier) verifyToken(token string, pubkey ed25519.PublicKey) ([]byte, error) {
@@ -124,7 +124,7 @@ func (v *verifier) verifyCert(certBytes []byte, signingCert *api.GovalCert) (*ap
 	// Store this cert's claims so we can validate tokens later.
 	certClaims := parseClaims(&cert)
 	if certClaims != nil {
-		v.currentClaims = certClaims
+		v.claims = certClaims
 	}
 
 	return &cert, nil
@@ -175,12 +175,13 @@ func (v *verifier) verifyChain(token string, getPubKey PubKeySource) ([]byte, *a
 // checkClaimsAgainstToken ensures the claims match up with the token.
 // This ensures that the final token in the chain is not spoofed via the forwarding protection private key.
 func (v *verifier) checkClaimsAgainstToken(token *api.GovalReplIdentity) error {
-	// no claims present
-	if v.currentClaims == nil {
+	// if the claims are nil, it means that the token was signed by the root privkey,
+	// which implicitly has all claims.
+	if v.claims == nil {
 		return nil
 	}
 
-	return verifyRawClaims(token.Replid, token.User, "", v.currentClaims)
+	return verifyRawClaims(token.Replid, token.User, "", v.claims)
 }
 
 // VerifyIdentity verifies that the given `REPL_IDENTITY` value is in fact
