@@ -1,0 +1,7 @@
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        # Allow coverage to drop by at most 2%.
+        threshold: 2%

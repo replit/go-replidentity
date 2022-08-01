@@ -1,0 +1,37 @@
+version: v1.0
+name: go-replidentity
+
+agent:
+  machine:
+    type: e1-standard-4
+    os_image: ubuntu2004
+
+fail_fast:
+  stop:
+    when: "true"
+
+auto_cancel:
+  running:
+    when: branch != 'main'
+
+global_job_config:
+  secrets:
+    - name: codecov
+  epilogue:
+    always:
+      commands:
+        - '[[ -e scripts/codecov.sh ]] && ./scripts/codecov.sh'
+
+blocks:
+  - name: test
+    task:
+      prologue:
+        commands:
+          - checkout
+          - sem-version go 1.17
+          - go mod download
+      jobs:
+        - name: run tests
+          commands:
+            - go test -cover -covermode=atomic
+    dependencies: []
