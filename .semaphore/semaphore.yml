@@ -28,6 +28,7 @@ blocks:
       prologue:
         commands:
           - checkout
+          - ./scripts/install_codecov.sh
           - sem-version go 1.17
           - go mod download
       jobs:
