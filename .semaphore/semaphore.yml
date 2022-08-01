@@ -34,5 +34,5 @@ blocks:
       jobs:
         - name: run tests
           commands:
-            - go test -cover -covermode=atomic
+            - go test -cover -covermode=atomic -coverprofile coverage.out
     dependencies: []
