@@ -176,4 +176,6 @@ message GovalReplIdentity {
   // If set, this token can only be consumed by this a Repl with this Repl ID.
   // Equivalent to JWT's "aud" (Audience) claim.
   string aud = 4;
+  // If set, this identity is for an ephemeral repl (e.g. a guest fork).
+  bool ephemeral = 5;
 }
