@@ -178,4 +178,8 @@ message GovalReplIdentity {
   string aud = 4;
   // If set, this identity is for an ephemeral repl (e.g. a guest fork).
   bool ephemeral = 5;
+  // This identity is forked from this Repl ID.
+  // This is set for "guest forks", where server(s) might need to know the
+  // original repl's ID despite the running environment being a fork.
+  string originReplid = 6;
 }
