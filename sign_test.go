@@ -131,6 +131,60 @@ func identityToken(
 	return intermediatePrivateKey, token, nil
 }
 
+// identityToken generates and returns a signed identity (plus a private key)
+// for the given repl metadata with a specific origin ID.
+func identityTokenWithOrigin(
+	replID string,
+	user string,
+	slug string,
+	originID string,
+) (ed25519.PrivateKey, string, error) {
+	replIdentity := api.GovalReplIdentity{
+		Replid:       replID,
+		User:         user,
+		Slug:         slug,
+		Aud:          replID,
+		OriginReplid: originID,
+	}
+
+	var conmanAuthority api.GovalSigningAuthority
+	conmanDecodedCertificate, err := base64.StdEncoding.DecodeString(conmanCertificate)
+	if err != nil {
+		return nil, "", fmt.Errorf("decode base64 identity: %w", err)
+	}
+	err = proto.Unmarshal(conmanDecodedCertificate, &conmanAuthority)
+	if err != nil {
+		return nil, "", fmt.Errorf("unmarshal identity: %w", err)
+	}
+	conmanDecodedPrivateKey, err := base64.StdEncoding.DecodeString(conmanPrivateKey)
+	if err != nil {
+		return nil, "", fmt.Errorf("decode base64 private key: %w", err)
+	}
+	conmanPrivateKey := ed25519.PrivateKey(conmanDecodedPrivateKey)
+
+	intermediatePrivateKey, intermediateAuthority, err := generateIntermediateCert(
+		conmanPrivateKey,
+		&conmanAuthority,
+		[]*api.CertificateClaim{
+			{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_IDENTITY}},
+			{Claim: &api.CertificateClaim_Replid{Replid: replIdentity.Replid}},
+			{Claim: &api.CertificateClaim_User{User: replIdentity.User}},
+		},
+		"conman",
+		36*time.Hour, // Repls can not live for more than 20-ish hours at the moment.
+	)
+	if err != nil {
+		return nil, "", fmt.Errorf("generate intermediate identity cert: %w", err)
+	}
+
+	token, err := signIdentity(intermediatePrivateKey, intermediateAuthority, &replIdentity)
+	if err != nil {
+		return nil, "", fmt.Errorf("sign identity: %w", err)
+	}
+
+	return intermediatePrivateKey, token, nil
+}
+
 // identityTokenAnyRepl creates an identity token that allows for any replid
 func identityTokenAnyRepl(
 	replID string,
@@ -282,9 +336,67 @@ func TestIdentity(t *testing.T) {
 	)
 	require.NoError(t, err)
 
+	// identities without origin repl IDs are accepted by default
+	// (they're not guest forks, replID can be used)
+	_, err = VerifyIdentityWithSource(
+		forwarded,
+		"testing",
+		"origin",
+		getPubKey,
+	)
+	require.NoError(t, err)
+
 	assert.Equal(t, "repl", replIdentity.Replid)
 	assert.Equal(t, "user", replIdentity.User)
 	assert.Equal(t, "slug", replIdentity.Slug)
+}
+
+func TestOriginIdentity(t *testing.T) {
+	privkey, identity, err := identityTokenWithOrigin("repl", "user", "slug", "origin")
+	require.NoError(t, err)
+
+	getPubKey := func(keyid, issuer string) (ed25519.PublicKey, error) {
+		if keyid != developmentKeyID {
+			return nil, nil
+		}
+		keyBytes, err := base64.StdEncoding.DecodeString(developmentPublicKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse public key as base64: %w", err)
+		}
+
+		return ed25519.PublicKey(keyBytes), nil
+	}
+
+	signingAuthority, err := NewSigningAuthority(
+		string(paserk.PrivateKeyToPASERKSecret(privkey)),
+		identity,
+		"repl",
+		getPubKey,
+	)
+	require.NoError(t, err)
+	forwarded, err := signingAuthority.Sign("testing")
+	require.NoError(t, err)
+
+	replIdentity, err := VerifyIdentityWithSource(
+		forwarded,
+		"testing",
+		"origin",
+		getPubKey,
+	)
+	require.NoError(t, err)
+
+	_, err = VerifyIdentityWithSource(
+		forwarded,
+		"testing",
+		"another-origin",
+		getPubKey,
+	)
+	require.Error(t, err)
+
+	assert.Equal(t, "repl", replIdentity.Replid)
+	assert.Equal(t, "user", replIdentity.User)
+	assert.Equal(t, "slug", replIdentity.Slug)
+	assert.Equal(t, "origin", replIdentity.OriginReplid)
 }
 
 func TestLayeredIdentity(t *testing.T) {

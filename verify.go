@@ -242,6 +242,24 @@ func VerifyIdentity(message string, audience string, getPubKey PubKeySource) (*a
 	return &identity, nil
 }
 
+// VerifyIdentityWithSource verifies that the given `REPL_IDENTITY` value is in fact
+// signed by Goval's chain of authority, and addressed to the provided audience
+// (the `REPL_ID` of the recipient). It also verifies that the identity's origin replID
+// matches the given source, if present. This can be used to enforce specific clients
+// in servers when verifying identities.
+func VerifyIdentityWithSource(message string, audience string, sourceReplid string, getPubKey PubKeySource) (*api.GovalReplIdentity, error) {
+	identity, err := VerifyIdentity(message, audience, getPubKey)
+	if err != nil {
+		return nil, err
+	}
+
+	if identity.OriginReplid != "" && identity.OriginReplid != sourceReplid {
+		return nil, fmt.Errorf("identity origin replid does not match. expected %q; got %q", sourceReplid, identity.OriginReplid)
+	}
+
+	return identity, nil
+}
+
 func verifyRawClaims(replid, user, cluster string, claims *MessageClaims, anyReplid, anyUser, anyCluster bool) error {
 	if claims != nil {
 		if replid != "" && !anyReplid {
