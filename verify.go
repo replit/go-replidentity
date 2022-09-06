@@ -254,7 +254,7 @@ func VerifyIdentityWithSource(message string, audience string, sourceReplid stri
 	}
 
 	if identity.OriginReplid != "" && identity.OriginReplid != sourceReplid {
-		return nil, errors.New("identity origin replid does not match")
+		return nil, fmt.Errorf("identity origin replid does not match. expected %q; got %q", sourceReplid, identity.OriginReplid)
 	}
 
 	return identity, nil
