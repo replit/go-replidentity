@@ -338,11 +338,11 @@ func TestIdentity(t *testing.T) {
 
 	// identities without origin repl IDs are accepted by default
 	// (they're not guest forks, replID can be used)
-	_, err = VerifyIdentityWithSource(
+	_, err = VerifyIdentity(
 		forwarded,
 		"testing",
-		"origin",
 		getPubKey,
+		WithSource("origin"),
 	)
 	require.NoError(t, err)
 
@@ -377,19 +377,19 @@ func TestOriginIdentity(t *testing.T) {
 	forwarded, err := signingAuthority.Sign("testing")
 	require.NoError(t, err)
 
-	replIdentity, err := VerifyIdentityWithSource(
+	replIdentity, err := VerifyIdentity(
 		forwarded,
 		"testing",
-		"origin",
 		getPubKey,
+		WithSource("origin"),
 	)
 	require.NoError(t, err)
 
-	_, err = VerifyIdentityWithSource(
+	_, err = VerifyIdentity(
 		forwarded,
 		"testing",
-		"another-origin",
 		getPubKey,
+		WithSource("another-origin"),
 	)
 	require.Error(t, err)
 
