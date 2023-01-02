@@ -108,9 +108,15 @@ func (v *verifier) verifyCert(certBytes []byte, signingCert *api.GovalCert) (*ap
 		for _, claim := range cert.Claims {
 			switch tc := claim.Claim.(type) {
 			case *api.CertificateClaim_Flag:
-				v.anyReplid = tc.Flag == api.FlagClaim_ANY_REPLID
-				v.anyUser = tc.Flag == api.FlagClaim_ANY_USER
-				v.anyCluster = tc.Flag == api.FlagClaim_ANY_CLUSTER
+				if tc.Flag == api.FlagClaim_ANY_REPLID {
+					v.anyReplid = true
+				}
+				if tc.Flag == api.FlagClaim_ANY_USER {
+					v.anyUser = true
+				}
+				if tc.Flag == api.FlagClaim_ANY_CLUSTER {
+					v.anyCluster = true
+				}
 			case *api.CertificateClaim_Replid:
 				if anyReplid {
 					continue
