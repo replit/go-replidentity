@@ -1,0 +1,14 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "paserk",
+    srcs = ["paserk.go"],
+    importpath = "github.com/replit/go-replidentity/paserk",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api",
+        "@org_golang_google_protobuf//proto",
+        "@org_golang_x_crypto//blake2b",
+        "@org_golang_x_crypto//ed25519",
+    ],
+)
