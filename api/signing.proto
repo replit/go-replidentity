@@ -10,8 +10,8 @@ option go_package = "github.com/replit/go-replidentity/api";
 enum TokenVersion {
   // Body contains are bare ReplToken and must be decoded explicitly
   BARE_REPL_TOKEN = 0;
-  // Body contains a GovalToken and can be interrogated about the type of its own
-  // message
+  // Body contains a GovalToken and can be interrogated about the type of its
+  // own message
   TYPE_AWARE_TOKEN = 1;
 }
 
@@ -22,8 +22,8 @@ message GovalSigningAuthority {
     // The ID of the root public key that was used to sign the token.
     string key_id = 1;
 
-    // A signed PASETO with a GovalCert in the body and the GovalSigningAuthority
-    // used to sign the body in the footer.
+    // A signed PASETO with a GovalCert in the body and the
+    // GovalSigningAuthority used to sign the body in the footer.
     string signed_cert = 2;
   }
 
@@ -47,6 +47,10 @@ enum FlagClaim {
 
   // Cert has the authority to sign GovalToken messages that can prove identity.
   IDENTITY = 5;
+
+  // Cert has the authority to sign GovalToken messages that authorizes the
+  // bearer to use Ghostwriter.
+  GHOSTWRITER = 6;
 
   // Cert has the authority to sign ReplToken messages for any ReplID. If this
   // claim is not set, the cert will only be able to emit tokens only for the
@@ -73,12 +77,12 @@ enum FlagClaim {
 // Claims should be enforced on certificates by ensuring that certificates
 // are signed by a certificate that has a superset of claims.
 //
-// When a cert is used to sign a message, it is the responsibility of the service
-// validating the message to ensure that any requests in the message are backed
-// up by claims in the certificate. Claims in a single certificate should be
-// interpreted as a union (e.g. if replid and user is set, the token may apply
-// to any repls owned by the user, or any repls in replid, regardless of the
-// owner).
+// When a cert is used to sign a message, it is the responsibility of the
+// service validating the message to ensure that any requests in the message are
+// backed up by claims in the certificate. Claims in a single certificate should
+// be interpreted as a union (e.g. if replid and user is set, the token may
+// apply to any repls owned by the user, or any repls in replid, regardless of
+// the owner).
 message CertificateClaim {
   oneof claim {
     // This cert has the authority to sign messages on behalf of a replid
@@ -87,14 +91,15 @@ message CertificateClaim {
     string user = 2;
     // This cert has the authority to sign messages in a certain cluster
     string cluster = 4;
-    // This cert has the authority to perform an action as described in FlagClaim
+    // This cert has the authority to perform an action as described in
+    // FlagClaim
     FlagClaim flag = 3;
   }
 }
 
 // GovalCert provides a mechanism of establishing a chain of trust without
-// requiring a single private key to be duplciated to all services that send messages.
-// The processes of generating intermediate certs is as follows:
+// requiring a single private key to be duplciated to all services that send
+// messages. The processes of generating intermediate certs is as follows:
 // - A PASETO `v2.public` root keypair is generated and added to GSM with an
 //   arbitrary key id.
 // - The root public key id is encoded in a GovalSigningAuthority
@@ -112,10 +117,10 @@ message CertificateClaim {
 // When validating a chain of certs, the footer of each wrapped PASETO is
 // recursed until reaching a root key id. The body of that PASETO is
 // validated with the root public key. The body is decoded into a GovalCert,
-// its lifetime is checked, and the public key is pulled out and used to validate
-// the next PASETO, continuing back up the chain.
-// At each step along the chain (except for the root), the claims of a certificate
-// must be verified to be a subset of the claims of the certificate signing it.
+// its lifetime is checked, and the public key is pulled out and used to
+// validate the next PASETO, continuing back up the chain. At each step along
+// the chain (except for the root), the claims of a certificate must be verified
+// to be a subset of the claims of the certificate signing it.
 message GovalCert {
   // Issue timestamp. Equivalent to JWT's "iat" (Issued At) claim.  Tokens with
   // no `iat` field will be treated as if they had been issed at the UNIX epoch
@@ -176,10 +181,14 @@ message GovalReplIdentity {
   // If set, this token can only be consumed by this a Repl with this Repl ID.
   // Equivalent to JWT's "aud" (Audience) claim.
   string aud = 4;
-  // If set, this identity is for an ephemeral repl (e.g. a guest fork).
+  // If true, this token is generated in an ephemeral environment (such as
+  // a guest fork). Systems can use this to potentially reject ephemeral tokens
+  // if that makes sense for their API.
   bool ephemeral = 5;
   // This identity is forked from this Repl ID.
   // This is set for "guest forks", where server(s) might need to know the
   // original repl's ID despite the running environment being a fork.
   string originReplid = 6;
+  // same as the `user` field, but it's the ID instead of the username
+  int64 user_id = 7;
 }
