@@ -4,8 +4,8 @@ import "google/protobuf/timestamp.proto";
 
 import "api/client.proto";
 
-package replit.goval.api;
-option go_package = "github.com/replit/goval/api";
+package api;
+option go_package = "github.com/replit/go-replidentity/api";
 
 enum TokenVersion {
   // Body contains are bare ReplToken and must be decoded explicitly
