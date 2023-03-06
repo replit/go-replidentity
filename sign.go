@@ -86,6 +86,7 @@ func (a *SigningAuthority) Sign(audience string) (string, error) {
 		Slug:         a.identity.Slug,
 		Aud:          audience,
 		OriginReplid: a.identity.OriginReplid,
+		UserId:       a.identity.UserId,
 	}
 
 	token, err := signIdentity(a.privateKey, a.signingAuthority, &replIdentity)

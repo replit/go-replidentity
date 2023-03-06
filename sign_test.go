@@ -477,6 +477,7 @@ func TestAnyReplIDIdentity(t *testing.T) {
 		User:   "user",
 		Slug:   "slug",
 		Aud:    "another-audience",
+		UserId: 1,
 	}
 
 	privkey, identity, err := identityTokenAnyRepl("repl", "user", "slug")
@@ -516,4 +517,5 @@ func TestAnyReplIDIdentity(t *testing.T) {
 	assert.Equal(t, "a-b-c-d", replIdentity.Replid)
 	assert.Equal(t, "user", replIdentity.User)
 	assert.Equal(t, "slug", replIdentity.Slug)
+	assert.Equal(t, int64(1), replIdentity.UserId)
 }
