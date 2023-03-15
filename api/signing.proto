@@ -191,4 +191,24 @@ message GovalReplIdentity {
   string originReplid = 6;
   // same as the `user` field, but it's the ID instead of the username
   int64 user_id = 7;
+  // If this is a build repl for a hosting deployment, include extra
+  // information about the specs of the build
+  BuildInfo build_info = 8;
+}
+
+// BuildInfo includes information about which deployment this repl is allowed to
+// create or update.
+message BuildInfo {
+  // ID is a unique identitifier for the deployment that this builder repl is
+  // allowed to push to.
+  string deployment_id = 1;
+
+  // URL is the replit.app URL that will be used for the deployment.
+  string url = 2;
+
+  // Build ID is a unique identifier for this particular deployment build
+  string build_id = 3;
+
+  // Tier refers to the GCE machine tier that will be used for the build
+  string machine_tier = 4;
 }
