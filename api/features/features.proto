@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package api.features;
+option go_package = "github.com/replit/go-replidentity/api/features";
+
+// Gpu provides parameters for the GPU feature
+message Gpu {}
+
+// Boosted provides parameters for the boosted feature (vertical scalability).
+message Boosted {}
+
+message Feature {
+  oneof feature {
+    // The GPU feature provides the repl with at least one partition of an A100
+    // GPU. This allows usage of CUDA to optimize AI and other GPU-enhanced
+    // workloads.
+    Gpu gpu = 1;
+
+    // The Boosted feature provides the repl with a guaranteed reservation of
+    // CPU and Memory instead of overcommitting.
+    Boosted boosted = 2;
+  }
+
+  // If true, this feature is required for the repl to be acquired.
+  // If false or unset, this feature is optional and the server can fall back to
+  // a sensible default if the feature can not be enabled.
+  bool required = 3;
+}

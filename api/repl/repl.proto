@@ -1,0 +1,215 @@
+syntax = "proto3";
+
+import "api/features/features.proto";
+
+package api.repl;
+option go_package = "github.com/replit/go-replidentity/api/repl";
+
+message Buckets {
+  // Snapshots is the GCS bucket where btrfs snapshots are stored.
+  string snapshots = 1;
+
+  // Metadata is the GCS bucket where OT metadata is stored.
+  string metadata = 2;
+}
+
+// This message constitutes the repl metadata and define the repl we're
+// connecting to. All fields are required unless otherwise stated.
+message Repl {
+  string id = 1;
+  string language = 2;
+  // Bucket is GCS bucket where repl files are stored.
+  string bucket = 3;
+  string slug = 4;
+  // User is the username of the user who owns the repl. This may change if a
+  // user changes their username.
+  string user = 5;
+
+  // (Optional) The replID of a repl to be used as the source filesystem. All
+  // writes will still go to the actual repl. This is intended to be a
+  // replacement for guest repls, giving us cheap COW semantics so all
+  // connections can have a real repl.
+  //
+  // One exception:
+  //
+  // It's important to note that data is not implicitly copied from src to
+  // dest. Only what is explicitly written when talking to pid1 (either
+  // gcsfiles or snapshots) will persist. This makes it slightly different
+  // than just forking.
+  //
+  // It's unclear what the behaviour should be if:
+  // - the dest and src repl both exist
+  // - the dest and src are the same
+  // - we have an src but no dest
+  // consider these unsupported/undefined for now.
+  string sourceRepl = 6;
+
+  // Database is the ID for the repldb instance that is used for this repl. If
+  // let empty, the repl ID is used.
+  string database = 7;
+
+  // Buckets are the GCS buckets where repl contents are stored.
+  Buckets buckets = 8;
+
+  // User ID is the user's ID from Replit web. A user's ID will never change.
+  UserId user_id = 9;
+}
+
+// Environment is used to namespace development Replit from production Replit
+// since user ID collisions will occurr between them.
+enum Environment {
+  DEVELOPMENT = 0;
+  PRODUCTION = 1;
+}
+
+message UserId {
+  int64 id = 1;
+  Environment environment = 2;
+}
+
+// The resource limits that should be applied to the Repl's container.
+message ResourceLimits {
+  // Whether the repl has network access.
+  bool net = 1;
+
+  // The amount of RAM in bytes that this repl will have.
+  int64 memory = 2;
+
+  // The number of cores that the container will be allowed to have.
+  double threads = 3;
+
+  // The Docker container weight factor for the scheduler. Similar to the
+  // `--cpu-shares` commandline flag.
+  double shares = 4;
+
+  // The size of the disk in bytes.
+  int64 disk = 5;
+
+  // Whether these limits are cachable, and if they are, by what facet of the
+  // token.
+  enum Cachability {
+    // Do not cache these limits.
+    NONE = 0;
+
+    // These limits can be cached and applied to this and any of the user's
+    // other repls.
+    USER = 1;
+
+    // These limits can be cached and applied only to this repl.
+    REPL = 2;
+  }
+
+  Cachability cache = 6;
+
+  // If set, apply a restrictive allowlist-based network policy to the container
+  // The container will only be able to communicate with the minimum domains
+  // necessary to make Replit work, such as package managers.
+  bool restrictNetwork = 7;
+
+  // If set, don't attempt to wake this repl if it is not running and a HTTP
+  // request arrives for it. If the repl is running by other means (e.g. the
+  // workspace), the HTTP requests can still flow to it. This simply stops the
+  // proxy from waking it.
+  bool preventWakeup = 8;
+}
+
+// Permissions allow tokens to perform certain actions.
+message Permissions {
+  // This token has permission to toggle the always on state of a container.
+  // For a connection to send the AlwaysOn message, it must have this
+  // permission.
+  bool toggleAlwaysOn = 1;
+}
+
+// Whether to persist filesystem, metadata, or both.
+enum Persistence {
+  // This is the usual mode of operation: both filesystem and metadata will be
+  // persisted.
+  PERSISTENT = 0;
+
+  // The ephemeral flag indicates the repl being connected to will have a time
+  // restriction (~1h) on stored metadata: the records in all controlplane
+  // tables. This has the consequence that repl will be forcibly terminated
+  // and completely evicted from the cluster as-if it never existed, and will
+  // then be unable to wakeup or serve static traffic. This option does NOT
+  // affect filesystem and other data persistence.
+  //
+  // For context, this value is used on the client when repls are created for:
+  // - replrun
+  // - guests
+  // - anon users
+  // - temp vnc repls
+  // - users with non-verified emails
+  EPHEMERAL = 1;
+
+  // This indicates that the repl being connected does not have the ability to
+  // persist files or be woken up after the lifetime of this repl expires.
+  //
+  // For context, this value is used on the client when repls are created for:
+  // - replrun
+  // - guests
+  // - language pages
+  NONE = 2;
+
+  // This indicates that the repl's filesystem should be mounted as read-only.
+  READ_ONLY = 3;
+}
+
+// Metadata is a strict subset of ReplToken (with the same ordinals and
+// everything).
+message Metadata {
+  // Repl is the core metadata about the Repl. The Repl that matches the ID of
+  // this field will have all of its fields updated to match the rest of the
+  // contents of this message.
+  Repl repl = 7;
+
+  // The resource limits for the container.
+  ResourceLimits resourceLimits = 10;
+
+  // The resource limits for the container, when running in interactive mode.
+  // These limits have priority over `resourceLimits` if present, and are never
+  // cached.
+  api.repl.ResourceLimits interactiveResourceLimits = 17;
+
+  // Whether to persist filesystem, metadata, or both.  When connecting to an
+  // already running/existing repl, its settings will be updated to match this
+  // mode.
+  Persistence persistence = 6;
+
+  // Flags are handy for passing arbitrary configs along. Mostly used so
+  // the client can try out new features
+  repeated string flags = 14;
+
+  Permissions permissions = 15;
+
+  // Features enable certain capabilities that are not enabled by default,
+  // typically because they require specific support for the feature that needs
+  // additional setup. Not every feature can coexist with each other, and
+  // servers should reject acquires that mix features that are incompatible with
+  // each other. Some features also require placement (via PlaceRepl) to have
+  // used a certain subset to acquire a machine that supports the feature (for
+  // example, GPUs can only be used on VMs that have GPUs, so placement must
+  // place the repl on a VM with GPUs first).
+  repeated features.Feature features = 16;
+
+  // BuildInfo is present if this is a build repl which is allowed to convert a
+  // repl to a container image and deploy it to Replit's deployment infra.
+  BuildInfo build_info = 18;
+}
+
+// BuildInfo includes information about which deployment this repl is allowed to
+// create or update.
+message BuildInfo {
+  // ID is a unique identitifier for the deployment that this builder repl is
+  // allowed to push to.
+  string deployment_id = 1;
+
+  // URL is the replit.app URL that will be used for the deployment.
+  string url = 2;
+
+  // Build ID is a unique identifier for this particular deployment build
+  string build_id = 3;
+
+  // Tier refers to the GCE machine tier that will be used for the build
+  string machine_tier = 4;
+}

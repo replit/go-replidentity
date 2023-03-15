@@ -3,6 +3,7 @@ syntax = "proto3";
 import "google/protobuf/timestamp.proto";
 
 import "api/client.proto";
+import "api/repl/repl.proto";
 
 package api;
 option go_package = "github.com/replit/go-replidentity/api";
@@ -191,4 +192,7 @@ message GovalReplIdentity {
   string originReplid = 6;
   // same as the `user` field, but it's the ID instead of the username
   int64 user_id = 7;
+  // If this is a build repl for a hosting deployment, include extra
+  // information about the specs of the build
+  repl.BuildInfo build_info = 8;
 }
