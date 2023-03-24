@@ -406,9 +406,9 @@ func TestNoIdentityClaim(t *testing.T) {
 		"testing",
 		getPubKey,
 	)
-	// Check that we got a 'token not authorized for identity' error
+	// Check that we got a 'token not authorized for flag IDENTITY' error
 	require.Error(t, err)
-	assert.Equal(t, "token not authorized for identity", err.Error())
+	assert.Equal(t, "token not authorized for flag IDENTITY", err.Error())
 }
 
 func TestOriginIdentity(t *testing.T) {
