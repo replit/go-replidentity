@@ -281,9 +281,11 @@ func VerifyIdentity(message string, audience string, getPubKey PubKeySource, opt
 	}
 
 	if v.claims != nil {
-		if _, ok := v.claims.Flags[api.FlagClaim_MINT_GOVAL_TOKEN]; !ok {
+		if _, ok := v.claims.Flags[api.FlagClaim_IDENTITY]; !ok {
 			return nil, errors.New("token not authorized for identity")
 		}
+	} else {
+		return nil, errors.New("token not authorized for identity")
 	}
 
 	for _, option := range options {
