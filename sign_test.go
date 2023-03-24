@@ -249,7 +249,7 @@ func identityTokenAnyRepl(
 		&conmanAuthority,
 		[]*api.CertificateClaim{
 			{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_IDENTITY}},
-			{Claim: &api.CertificateClaim_Replid{Flag: api.FlagClaim_RENEW_IDENTITY},
+			{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_RENEW_IDENTITY}},
 			{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_ANY_REPLID}},
 			{Claim: &api.CertificateClaim_User{User: replIdentity.User}},
 		},
