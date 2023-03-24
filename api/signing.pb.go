@@ -81,10 +81,6 @@ const (
 	FlagClaim_SIGN_INTERMEDIATE_CERT FlagClaim = 1
 	// Cert has the authority to sign GovalToken messages that can prove identity.
 	FlagClaim_IDENTITY FlagClaim = 5
-		// Cert has ability to mint Repl Identity tokens
-		FlagClaim_RENEW_IDENTITY FlagClaim = 7
-		// Cert has abilit to mint Repl KV tokens
-		FlagClaim_RENEW_KV FlagClaim = 8
 	// Cert has the authority to sign GovalToken messages that authorizes the
 	// bearer to use Ghostwriter.
 	FlagClaim_GHOSTWRITER FlagClaim = 6
