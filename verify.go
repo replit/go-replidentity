@@ -249,12 +249,53 @@ func WithSource(sourceReplid string) VerifyOption {
 //
 // The optional options allow specifying additional verifications on the identity.
 func VerifyIdentity(message string, audience string, getPubKey PubKeySource, options ...VerifyOption) (*api.GovalReplIdentity, error) {
-	v, bytes, _, err := verifyChain(message, getPubKey)
+	opts := VerifyTokenOpts{
+		Message:   message,
+		Audience:  audience,
+		GetPubKey: getPubKey,
+		Options:   options,
+		Flags:     []api.FlagClaim{api.FlagClaim_IDENTITY},
+	}
+	return VerifyToken(opts)
+}
+
+// VerifyRenewIdentity verifies that the given `REPL_RENEWAL` value is in fact
+// signed by Goval's chain of authority, addressed to the provided audience
+// (the `REPL_ID` of the recipient), and has the capability to renew the
+// identity.
+//
+// The optional options allow specifying additional verifications on the identity.
+func VerifyRenewIdentity(message string, audience string, getPubKey PubKeySource, options ...VerifyOption) (*api.GovalReplIdentity, error) {
+	opts := VerifyTokenOpts{
+		Message:   message,
+		Audience:  audience,
+		GetPubKey: getPubKey,
+		Options:   options,
+		Flags:     []api.FlagClaim{api.FlagClaim_RENEW_IDENTITY},
+	}
+	return VerifyToken(opts)
+}
+
+type VerifyTokenOpts struct {
+	Message   string
+	Audience  string
+	GetPubKey PubKeySource
+	Options   []VerifyOption
+	Flags     []api.FlagClaim
+}
+
+// VerifyToken verifies that the given `REPL_IDENTITY` value is in fact
+// signed by Goval's chain of authority, and addressed to the provided audience
+// (the `REPL_ID` of the recipient).
+//
+// The optional options allow specifying additional verifications on the identity.
+func VerifyToken(opts VerifyTokenOpts) (*api.GovalReplIdentity, error) {
+	v, bytes, _, err := verifyChain(opts.Message, opts.GetPubKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed verify message: %w", err)
 	}
 
-	signingAuthority, err := getSigningAuthority(message)
+	signingAuthority, err := getSigningAuthority(opts.Message)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read body type: %w", err)
 	}
@@ -271,8 +312,8 @@ func VerifyIdentity(message string, audience string, getPubKey PubKeySource, opt
 		}
 	}
 
-	if audience != identity.Aud {
-		return nil, fmt.Errorf("message identity mismatch. expected %q, got %q", audience, identity.Aud)
+	if opts.Audience != identity.Aud {
+		return nil, fmt.Errorf("message identity mismatch. expected %q, got %q", opts.Audience, identity.Aud)
 	}
 
 	err = v.checkClaimsAgainstToken(&identity)
@@ -281,14 +322,16 @@ func VerifyIdentity(message string, audience string, getPubKey PubKeySource, opt
 	}
 
 	if v.claims != nil {
-		if _, ok := v.claims.Flags[api.FlagClaim_IDENTITY]; !ok {
-			return nil, errors.New("token not authorized for identity")
+		for _, flag := range opts.Flags {
+			if _, ok := v.claims.Flags[flag]; !ok {
+				return nil, fmt.Errorf("token not authorized for flag %s", flag)
+			}
 		}
-	} else {
-		return nil, errors.New("token not authorized for identity")
+	} else if len(opts.Flags) > 0 {
+		return nil, fmt.Errorf("token not authorized for flags")
 	}
 
-	for _, option := range options {
+	for _, option := range opts.Options {
 		err = option.verify(&identity)
 		if err != nil {
 			return nil, err
