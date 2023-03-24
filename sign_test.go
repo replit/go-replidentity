@@ -98,6 +98,23 @@ func identityToken(
 	)
 }
 
+func renewalToken(
+	replID string,
+	user string,
+	slug string,
+) (ed25519.PrivateKey, string, error) {
+	return tokenWithClaims(
+		replID,
+		user,
+		slug,
+		[]*api.CertificateClaim{
+			{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_RENEW_IDENTITY}},
+			{Claim: &api.CertificateClaim_Replid{Replid: replID}},
+			{Claim: &api.CertificateClaim_User{User: user}},
+		},
+	)
+}
+
 func tokenWithClaims(
 	replID string,
 	user string,
@@ -232,6 +249,7 @@ func identityTokenAnyRepl(
 		&conmanAuthority,
 		[]*api.CertificateClaim{
 			{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_IDENTITY}},
+			{Claim: &api.CertificateClaim_Replid{Flag: api.FlagClaim_RENEW_IDENTITY},
 			{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_ANY_REPLID}},
 			{Claim: &api.CertificateClaim_User{User: replIdentity.User}},
 		},
@@ -578,4 +596,42 @@ func TestAnyReplIDIdentity(t *testing.T) {
 	assert.Equal(t, "user", replIdentity.User)
 	assert.Equal(t, "slug", replIdentity.Slug)
 	assert.Equal(t, int64(1), replIdentity.UserId)
+}
+
+func TestRenew(t *testing.T) {
+	privkey, identity, err := renewalToken("repl", "user", "slug")
+	require.NoError(t, err)
+
+	getPubKey := func(keyid, issuer string) (ed25519.PublicKey, error) {
+		if keyid != developmentKeyID {
+			return nil, nil
+		}
+		keyBytes, err := base64.StdEncoding.DecodeString(developmentPublicKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse public key as base64: %w", err)
+		}
+
+		return ed25519.PublicKey(keyBytes), nil
+	}
+
+	signingAuthority, err := NewSigningAuthority(
+		string(paserk.PrivateKeyToPASERKSecret(privkey)),
+		identity,
+		"repl",
+		getPubKey,
+	)
+	require.NoError(t, err)
+	forwarded, err := signingAuthority.Sign("testing")
+	require.NoError(t, err)
+
+	replIdentity, err := VerifyRenewIdentity(
+		forwarded,
+		"testing",
+		getPubKey,
+	)
+	require.NoError(t, err)
+
+	assert.Equal(t, "repl", replIdentity.Replid)
+	assert.Equal(t, "user", replIdentity.User)
+	assert.Equal(t, "slug", replIdentity.Slug)
 }

@@ -48,6 +48,12 @@ enum FlagClaim {
   // Cert has the authority to sign GovalToken messages that can prove identity.
   IDENTITY = 5;
 
+  // Cert has ability to mint Repl Identity tokens
+  RENEW_IDENTITY = 7;
+
+  // Cert has ability to mint Repl KV tokens
+  RENEW_KV = 8;
+
   // Cert has the authority to sign GovalToken messages that authorizes the
   // bearer to use Ghostwriter.
   GHOSTWRITER = 6;
