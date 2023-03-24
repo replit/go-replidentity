@@ -280,6 +280,14 @@ func VerifyIdentity(message string, audience string, getPubKey PubKeySource, opt
 		return nil, fmt.Errorf("claim mismatch: %w", err)
 	}
 
+	if v.claims != nil {
+		if _, ok := v.claims.Flags[api.FlagClaim_IDENTITY]; !ok {
+			return nil, errors.New("token not authorized for identity")
+		}
+	} else {
+		return nil, errors.New("token not authorized for identity")
+	}
+
 	for _, option := range options {
 		err = option.verify(&identity)
 		if err != nil {

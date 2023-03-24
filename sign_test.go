@@ -86,6 +86,24 @@ func identityToken(
 	user string,
 	slug string,
 ) (ed25519.PrivateKey, string, error) {
+	return tokenWithClaims(
+		replID,
+		user,
+		slug,
+		[]*api.CertificateClaim{
+			{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_IDENTITY}},
+			{Claim: &api.CertificateClaim_Replid{Replid: replID}},
+			{Claim: &api.CertificateClaim_User{User: user}},
+		},
+	)
+}
+
+func tokenWithClaims(
+	replID string,
+	user string,
+	slug string,
+	claims []*api.CertificateClaim,
+) (ed25519.PrivateKey, string, error) {
 	replIdentity := api.GovalReplIdentity{
 		Replid: replID,
 		User:   user,
@@ -111,11 +129,7 @@ func identityToken(
 	intermediatePrivateKey, intermediateAuthority, err := generateIntermediateCert(
 		conmanPrivateKey,
 		&conmanAuthority,
-		[]*api.CertificateClaim{
-			{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_IDENTITY}},
-			{Claim: &api.CertificateClaim_Replid{Replid: replIdentity.Replid}},
-			{Claim: &api.CertificateClaim_User{User: replIdentity.User}},
-		},
+		claims,
 		"conman",
 		36*time.Hour, // Repls can not live for more than 20-ish hours at the moment.
 	)
@@ -349,6 +363,52 @@ func TestIdentity(t *testing.T) {
 	assert.Equal(t, "repl", replIdentity.Replid)
 	assert.Equal(t, "user", replIdentity.User)
 	assert.Equal(t, "slug", replIdentity.Slug)
+}
+
+func TestNoIdentityClaim(t *testing.T) {
+	replID := "repl"
+	user := "user"
+	privkey, identity, err := tokenWithClaims(
+		replID,
+		user,
+		"slug",
+		// We're leaving out the IDENTITY claim
+		[]*api.CertificateClaim{
+			{Claim: &api.CertificateClaim_User{User: user}},
+			{Claim: &api.CertificateClaim_Replid{Replid: replID}},
+		})
+	require.NoError(t, err)
+
+	getPubKey := func(keyid, issuer string) (ed25519.PublicKey, error) {
+		if keyid != developmentKeyID {
+			return nil, nil
+		}
+		keyBytes, err := base64.StdEncoding.DecodeString(developmentPublicKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse public key as base64: %w", err)
+		}
+
+		return ed25519.PublicKey(keyBytes), nil
+	}
+
+	signingAuthority, err := NewSigningAuthority(
+		string(paserk.PrivateKeyToPASERKSecret(privkey)),
+		identity,
+		"repl",
+		getPubKey,
+	)
+	require.NoError(t, err)
+	forwarded, err := signingAuthority.Sign("testing")
+	require.NoError(t, err)
+
+	_, err = VerifyIdentity(
+		forwarded,
+		"testing",
+		getPubKey,
+	)
+	// Check that we got a 'token not authorized for identity' error
+	require.Error(t, err)
+	assert.Equal(t, "token not authorized for identity", err.Error())
 }
 
 func TestOriginIdentity(t *testing.T) {
