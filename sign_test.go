@@ -21,8 +21,8 @@ import (
 const (
 	developmentKeyID     = "dev:1"
 	developmentPublicKey = "on0FkSmEC+ce40V9Vc4QABXSx6TXo+lhp99b6Ka0gro="
-	conmanPrivateKey     = "jF/ctKF4x9mL+s8e8bLe2R0Dmzr4FQ+hwBIm6U7TuBRrujSaTKHTWbXSoUc2Y0uQ3mm2YqOmQeR/isCd0qJrVw=="
-	conmanCertificate    = "GAEiBmNvbm1hbhK7AnYyLnB1YmxpYy5RMmQzU1hoMUsyZHNaMWxSZFdVM2NXNVJSVk5FUVdwV01YRlhiRUpvUkdRclpYRmtRVkp2UTBkQlJXRkJhR2RHUjJkSldVRm9iME5IUVUxaFFXaG5SVWxxVm5KTmFUVjNaRmRLYzJGWFRYVlpWR1IyVFVjeGNtVlhaM2ROVnpCNFRVaEdSMU5GTlhSVWEzaHlWR3BXZDJSSE1VeGhia0p5VTBkMGJVNUlTa0ppYlZKTVlWZEZlRmwzUFQxX1g4OVJiVDhTQlhLUUVpVzZfLXBFYUtUX2l1T3lnalB1QVhxajRZSDNHT1FiRlVSY08ydTRFZWF2SUJWU09oRHV4VF82NHFwZG4ydWkxcGo2RjRzTy5SMEZGYVVKdFRuWmliVEZvWW1kdlJscEhWakpQYWtVOQ=="
+	conmanPrivateKey     = "iRnuDeX+Dxum5UR8KMZbhtgUQ55PNOHzhJ5/RwqtiQw8AO6GbqzhvRRPB6SfYrev568iOAyJsiVgtdyiOB6YTQ=="
+	conmanCertificate    = "GAEiBmNvbm1hbhLGAnYyLnB1YmxpYy5RMmR6U1d4bWRVaHZVVmxST1RaeVdsbFNTVXhEUzFScGFreEJSMFZLUTNneVYwVmhRV2huUWtkblNWbENVbTlEUjBGallVRm9aMGxIWjBsWlFXaHZRMGRCVFdGQmFHZEZTV3BXY2sxcE5YZGtWMHB6WVZkTmRWVkZSa1ZrVjJoMFRtNU5NRmxxUWxaV1NHUnNZVEkwZVZONlRubE1WMVl5VTFkd2JsUlhiR2xUVjNoYVZFWm9hbUl5Y0c1YVZ6RkdUVUU5UFhaTklYOURrRFlocGk0SE9jMng2V2lNdV9qY3Y3MEFQd3A2Q2ZpbU1oejVjYWJoU0wzckdqQjN1cDBaSVp5M0tzWW9NelJSNjRtNTFLRmZqbVFNQkFvLlIwRkZhVUp0VG5aaWJURm9ZbWR2UmxwSFZqSlBha1U5"
 )
 
 func generateIntermediateCert(
@@ -92,6 +92,23 @@ func identityToken(
 		slug,
 		[]*api.CertificateClaim{
 			{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_IDENTITY}},
+			{Claim: &api.CertificateClaim_Replid{Replid: replID}},
+			{Claim: &api.CertificateClaim_User{User: user}},
+		},
+	)
+}
+
+func renewalToken(
+	replID string,
+	user string,
+	slug string,
+) (ed25519.PrivateKey, string, error) {
+	return tokenWithClaims(
+		replID,
+		user,
+		slug,
+		[]*api.CertificateClaim{
+			{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_RENEW_IDENTITY}},
 			{Claim: &api.CertificateClaim_Replid{Replid: replID}},
 			{Claim: &api.CertificateClaim_User{User: user}},
 		},
@@ -232,6 +249,7 @@ func identityTokenAnyRepl(
 		&conmanAuthority,
 		[]*api.CertificateClaim{
 			{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_IDENTITY}},
+			{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_RENEW_IDENTITY}},
 			{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_ANY_REPLID}},
 			{Claim: &api.CertificateClaim_User{User: replIdentity.User}},
 		},
@@ -578,4 +596,42 @@ func TestAnyReplIDIdentity(t *testing.T) {
 	assert.Equal(t, "user", replIdentity.User)
 	assert.Equal(t, "slug", replIdentity.Slug)
 	assert.Equal(t, int64(1), replIdentity.UserId)
+}
+
+func TestRenew(t *testing.T) {
+	privkey, identity, err := renewalToken("repl", "user", "slug")
+	require.NoError(t, err)
+
+	getPubKey := func(keyid, issuer string) (ed25519.PublicKey, error) {
+		if keyid != developmentKeyID {
+			return nil, nil
+		}
+		keyBytes, err := base64.StdEncoding.DecodeString(developmentPublicKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse public key as base64: %w", err)
+		}
+
+		return ed25519.PublicKey(keyBytes), nil
+	}
+
+	signingAuthority, err := NewSigningAuthority(
+		string(paserk.PrivateKeyToPASERKSecret(privkey)),
+		identity,
+		"repl",
+		getPubKey,
+	)
+	require.NoError(t, err)
+	forwarded, err := signingAuthority.Sign("testing")
+	require.NoError(t, err)
+
+	replIdentity, err := VerifyRenewIdentity(
+		forwarded,
+		"testing",
+		getPubKey,
+	)
+	require.NoError(t, err)
+
+	assert.Equal(t, "repl", replIdentity.Replid)
+	assert.Equal(t, "user", replIdentity.User)
+	assert.Equal(t, "slug", replIdentity.Slug)
 }
