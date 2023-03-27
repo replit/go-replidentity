@@ -635,3 +635,45 @@ func TestRenew(t *testing.T) {
 	assert.Equal(t, "user", replIdentity.User)
 	assert.Equal(t, "slug", replIdentity.Slug)
 }
+
+func TestRenewNoClaim(t *testing.T) {
+	privkey, identity, err := tokenWithClaims(
+		"replid",
+		"user",
+		"slug",
+		[]*api.CertificateClaim{
+			{Claim: &api.CertificateClaim_Replid{Replid: "replid"}},
+			{Claim: &api.CertificateClaim_User{User: "user"}},
+		},
+	)
+	require.NoError(t, err)
+
+	getPubKey := func(keyid, issuer string) (ed25519.PublicKey, error) {
+		if keyid != developmentKeyID {
+			return nil, nil
+		}
+		keyBytes, err := base64.StdEncoding.DecodeString(developmentPublicKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse public key as base64: %w", err)
+		}
+
+		return ed25519.PublicKey(keyBytes), nil
+	}
+
+	signingAuthority, err := NewSigningAuthority(
+		string(paserk.PrivateKeyToPASERKSecret(privkey)),
+		identity,
+		"replid",
+		getPubKey,
+	)
+	require.NoError(t, err)
+	forwarded, err := signingAuthority.Sign("testing")
+	require.NoError(t, err)
+
+	_, err = VerifyRenewIdentity(
+		forwarded,
+		"testing",
+		getPubKey,
+	)
+	require.Error(t, err)
+}
