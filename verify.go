@@ -259,6 +259,23 @@ func VerifyIdentity(message string, audience string, getPubKey PubKeySource, opt
 	return VerifyToken(opts)
 }
 
+// VerifyRenewIdentity verifies that the given `REPL_RENEWAL` value is in fact
+// signed by Goval's chain of authority, addressed to the provided audience
+// (the `REPL_ID` of the recipient), and has the capability to renew the
+// identity.
+//
+// The optional options allow specifying additional verifications on the identity.
+func VerifyRenewIdentity(message string, audience string, getPubKey PubKeySource, options ...VerifyOption) (*api.GovalReplIdentity, error) {
+	opts := VerifyTokenOpts{
+		Message:   message,
+		Audience:  audience,
+		GetPubKey: getPubKey,
+		Options:   options,
+		Flags:     []api.FlagClaim{api.FlagClaim_RENEW_IDENTITY},
+	}
+	return VerifyToken(opts)
+}
+
 type VerifyTokenOpts struct {
 	Message   string
 	Audience  string
