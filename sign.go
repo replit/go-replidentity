@@ -22,8 +22,8 @@ type SigningAuthority struct {
 }
 
 // NewSigningAuthority returns a new SigningAuthority given the marshaled
-// private key (obtained from the `REPL_IDENTITY_KEY` environment variable),
-// the identity token (obtained from the `REPL_IDENTITY` environment variable),
+// private key (obtained from the `REPL_IDENTITY_KEY` environment variable or /etc/replidentity.key),
+// the identity token (obtained from the `REPL_IDENTITY` environment variable or /etc/replidentity),
 // the current Repl ID (obtained from the `REPL_ID` environment varaible), and
 // the source of public keys (typically [ReadPublicKeyFromEnv]).
 func NewSigningAuthority(
