@@ -47,11 +47,11 @@ func CreateIdentityTokenSigningAuthority() (*SigningAuthority, error) {
 	identitySigningAuthorityToken, identitySigningAuthorityKey := readIdentity()
 
 	if identitySigningAuthorityToken == "" {
-		return nil, fmt.Errorf("could not read token from /etc/replidentity or REPL_IDENTITY env var")
+		return nil, fmt.Errorf("could not read token from /tmp/replidentity or REPL_IDENTITY env var")
 	}
 
 	if identitySigningAuthorityKey == "" {
-		return nil, fmt.Errorf("could not read key from /etc/replidentity.key or REPL_IDENTITY_KEY env var")
+		return nil, fmt.Errorf("could not read key from /tmp/replidentity.key or REPL_IDENTITY_KEY env var")
 	}
 
 	return NewSigningAuthority(
@@ -84,14 +84,14 @@ func CreateIdentityTokenAddressedTo(audience string) (string, error) {
 	return identityToken, nil
 }
 
-// Try to read from /etc/replidentity and /etc/replidentity.key,
+// Try to read from /tmp/replidentity and /tmp/replidentity.key,
 // falling back to the environment variables.
 func readIdentity() (string, string) {
-	identity, err := os.ReadFile("/etc/replidentity")
+	identity, err := os.ReadFile("/tmp/replidentity")
 	if err != nil {
 		identity = []byte(os.Getenv("REPL_IDENTITY"))
 	}
-	identityKey, err := os.ReadFile("/etc/replidentity.key")
+	identityKey, err := os.ReadFile("/tmp/replidentity.key")
 	if err != nil {
 		identityKey = []byte(os.Getenv("REPL_IDENTITY_KEY"))
 	}
