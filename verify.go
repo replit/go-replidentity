@@ -25,6 +25,10 @@ type verifier struct {
 }
 
 func (v *verifier) verifyToken(token string, pubkey ed25519.PublicKey) ([]byte, error) {
+	if len(pubkey) == 0 {
+		return nil, errors.New("pubkey is empty")
+	}
+
 	var meta string
 
 	err := paseto.NewV2().Verify(token, pubkey, &meta, nil)
