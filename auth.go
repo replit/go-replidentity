@@ -17,10 +17,12 @@ type PubKeySource func(keyid, issuer string) (ed25519.PublicKey, error)
 
 // MessageClaims is a collection of indexable claims that are made by a certificate.
 type MessageClaims struct {
-	Repls    map[string]struct{}
-	Users    map[string]struct{}
-	Clusters map[string]struct{}
-	Flags    map[api.FlagClaim]struct{}
+	Repls       map[string]struct{}
+	Users       map[string]struct{}
+	UserIDs     map[int64]struct{}
+	Clusters    map[string]struct{}
+	Subclusters map[string]struct{}
+	Flags       map[api.FlagClaim]struct{}
 }
 
 func parseClaims(cert *api.GovalCert) *MessageClaims {
@@ -29,9 +31,12 @@ func parseClaims(cert *api.GovalCert) *MessageClaims {
 	}
 
 	claims := MessageClaims{
-		Repls: map[string]struct{}{},
-		Users: map[string]struct{}{},
-		Flags: map[api.FlagClaim]struct{}{},
+		Repls:       map[string]struct{}{},
+		Users:       map[string]struct{}{},
+		UserIDs:     map[int64]struct{}{},
+		Clusters:    map[string]struct{}{},
+		Subclusters: map[string]struct{}{},
+		Flags:       map[api.FlagClaim]struct{}{},
 	}
 
 	for _, claim := range cert.Claims {
@@ -42,8 +47,14 @@ func parseClaims(cert *api.GovalCert) *MessageClaims {
 		case *api.CertificateClaim_User:
 			claims.Users[typedClaim.User] = struct{}{}
 
+		case *api.CertificateClaim_UserId:
+			claims.UserIDs[typedClaim.UserId] = struct{}{}
+
 		case *api.CertificateClaim_Cluster:
-			claims.Users[typedClaim.Cluster] = struct{}{}
+			claims.Clusters[typedClaim.Cluster] = struct{}{}
+
+		case *api.CertificateClaim_Subcluster:
+			claims.Subclusters[typedClaim.Subcluster] = struct{}{}
 
 		case *api.CertificateClaim_Flag:
 			claims.Flags[typedClaim.Flag] = struct{}{}
