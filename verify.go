@@ -19,9 +19,11 @@ type verifier struct {
 	claims *MessageClaims
 
 	// signing certs can allow "any *" variants
-	anyReplid  bool
-	anyUser    bool
-	anyCluster bool
+	anyReplid     bool
+	anyUser       bool
+	anyCluster    bool
+	anySubcluster bool
+	deployments   bool
 }
 
 func (v *verifier) verifyToken(token string, pubkey ed25519.PublicKey) ([]byte, error) {
@@ -77,7 +79,7 @@ func (v *verifier) verifyCert(certBytes []byte, signingCert *api.GovalCert) (*ap
 	}
 
 	// Verify that the cert is valid
-	err = verifyClaims(cert.Iat.AsTime(), cert.Exp.AsTime(), "", "", "", nil)
+	err = verifyClaims(cert.Iat.AsTime(), cert.Exp.AsTime(), "", "", "", "", false, nil)
 	if err != nil {
 		return nil, fmt.Errorf("cert is not valid: %w", err)
 	}
@@ -92,7 +94,7 @@ func (v *verifier) verifyCert(certBytes []byte, signingCert *api.GovalCert) (*ap
 
 		// Verify the cert claims agrees with its signer
 		authorizedClaims := map[string]struct{}{}
-		var anyReplid, anyUser, anyCluster bool
+		var anyReplid, anyUser, anyCluster, anySubcluster, deployments bool
 		for _, claim := range signingCert.Claims {
 			authorizedClaims[claim.String()] = struct{}{}
 			switch tc := claim.Claim.(type) {
@@ -105,6 +107,12 @@ func (v *verifier) verifyCert(certBytes []byte, signingCert *api.GovalCert) (*ap
 				}
 				if tc.Flag == api.FlagClaim_ANY_CLUSTER {
 					anyCluster = true
+				}
+				if tc.Flag == api.FlagClaim_ANY_SUBCLUSTER {
+					anySubcluster = true
+				}
+				if tc.Flag == api.FlagClaim_DEPLOYMENTS {
+					deployments = true
 				}
 			}
 		}
@@ -121,6 +129,12 @@ func (v *verifier) verifyCert(certBytes []byte, signingCert *api.GovalCert) (*ap
 				if tc.Flag == api.FlagClaim_ANY_CLUSTER {
 					v.anyCluster = true
 				}
+				if tc.Flag == api.FlagClaim_ANY_SUBCLUSTER {
+					v.anySubcluster = true
+				}
+				if tc.Flag == api.FlagClaim_DEPLOYMENTS {
+					v.deployments = true
+				}
 			case *api.CertificateClaim_Replid:
 				if anyReplid {
 					continue
@@ -131,6 +145,14 @@ func (v *verifier) verifyCert(certBytes []byte, signingCert *api.GovalCert) (*ap
 				}
 			case *api.CertificateClaim_Cluster:
 				if anyCluster {
+					continue
+				}
+			case *api.CertificateClaim_Subcluster:
+				if anySubcluster {
+					continue
+				}
+			case *api.CertificateClaim_Deployment:
+				if deployments || !tc.Deployment {
 					continue
 				}
 			}
@@ -211,7 +233,29 @@ func (v *verifier) checkClaimsAgainstToken(token *api.GovalReplIdentity) error {
 		return nil
 	}
 
-	return verifyRawClaims(token.Replid, token.User, "", v.claims, v.anyReplid, v.anyUser, v.anyCluster)
+	var cluster, subcluster string
+	var deployment bool
+	switch v := token.Runtime.(type) {
+	case *api.GovalReplIdentity_Deployment:
+		deployment = true
+	case *api.GovalReplIdentity_Interactive:
+		cluster = v.Interactive.Cluster
+		subcluster = v.Interactive.Subcluster
+	}
+
+	return verifyRawClaims(
+		token.Replid,
+		token.User,
+		cluster,
+		subcluster,
+		deployment,
+		v.claims,
+		v.anyReplid,
+		v.anyUser,
+		v.anyCluster,
+		v.anySubcluster,
+		v.deployments,
+	)
 }
 
 // VerifyOption specifies an additional verification step to be performed on an identity.
@@ -345,7 +389,12 @@ func VerifyToken(opts VerifyTokenOpts) (*api.GovalReplIdentity, error) {
 	return &identity, nil
 }
 
-func verifyRawClaims(replid, user, cluster string, claims *MessageClaims, anyReplid, anyUser, anyCluster bool) error {
+func verifyRawClaims(
+	replid, user, cluster, subcluster string,
+	deployment bool,
+	claims *MessageClaims,
+	anyReplid, anyUser, anyCluster, anySubcluster, allowsDeployment bool,
+) error {
 	if claims != nil {
 		if replid != "" && !anyReplid {
 			if _, ok := claims.Repls[replid]; !ok {
@@ -364,12 +413,22 @@ func verifyRawClaims(replid, user, cluster string, claims *MessageClaims, anyRep
 				return errors.New("not authorized (cluster)")
 			}
 		}
+
+		if subcluster != "" && !anySubcluster {
+			if _, ok := claims.Subclusters[subcluster]; !ok {
+				return errors.New("not authorized (subcluster)")
+			}
+		}
+
+		if deployment && !allowsDeployment {
+			return errors.New("not authorized (deployment)")
+		}
 	}
 
 	return nil
 }
 
-func verifyClaims(iat time.Time, exp time.Time, replid, user, cluster string, claims *MessageClaims) error {
+func verifyClaims(iat time.Time, exp time.Time, replid, user, cluster, subcluster string, deployment bool, claims *MessageClaims) error {
 	if iat.After(time.Now()) {
 		return fmt.Errorf("not valid for %s", time.Until(iat))
 	}
@@ -378,5 +437,5 @@ func verifyClaims(iat time.Time, exp time.Time, replid, user, cluster string, cl
 		return fmt.Errorf("expired %s ago", time.Since(exp))
 	}
 
-	return verifyRawClaims(replid, user, cluster, claims, false, false, false)
+	return verifyRawClaims(replid, user, cluster, subcluster, deployment, claims, false, false, false, false, false)
 }
