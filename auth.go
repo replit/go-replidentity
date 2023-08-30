@@ -17,10 +17,11 @@ type PubKeySource func(keyid, issuer string) (ed25519.PublicKey, error)
 
 // MessageClaims is a collection of indexable claims that are made by a certificate.
 type MessageClaims struct {
-	Repls    map[string]struct{}
-	Users    map[string]struct{}
-	Clusters map[string]struct{}
-	Flags    map[api.FlagClaim]struct{}
+	Repls       map[string]struct{}
+	Users       map[string]struct{}
+	Clusters    map[string]struct{}
+	Subclusters map[string]struct{}
+	Flags       map[api.FlagClaim]struct{}
 }
 
 func parseClaims(cert *api.GovalCert) *MessageClaims {
