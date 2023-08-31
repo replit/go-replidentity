@@ -21,8 +21,8 @@ import (
 const (
 	developmentKeyID     = "dev:1"
 	developmentPublicKey = "on0FkSmEC+ce40V9Vc4QABXSx6TXo+lhp99b6Ka0gro="
-	conmanPrivateKey     = "iRnuDeX+Dxum5UR8KMZbhtgUQ55PNOHzhJ5/RwqtiQw8AO6GbqzhvRRPB6SfYrev568iOAyJsiVgtdyiOB6YTQ=="
-	conmanCertificate    = "GAEiBmNvbm1hbhLGAnYyLnB1YmxpYy5RMmR6U1d4bWRVaHZVVmxST1RaeVdsbFNTVXhEUzFScGFreEJSMFZLUTNneVYwVmhRV2huUWtkblNWbENVbTlEUjBGallVRm9aMGxIWjBsWlFXaHZRMGRCVFdGQmFHZEZTV3BXY2sxcE5YZGtWMHB6WVZkTmRWVkZSa1ZrVjJoMFRtNU5NRmxxUWxaV1NHUnNZVEkwZVZONlRubE1WMVl5VTFkd2JsUlhiR2xUVjNoYVZFWm9hbUl5Y0c1YVZ6RkdUVUU5UFhaTklYOURrRFlocGk0SE9jMng2V2lNdV9qY3Y3MEFQd3A2Q2ZpbU1oejVjYWJoU0wzckdqQjN1cDBaSVp5M0tzWW9NelJSNjRtNTFLRmZqbVFNQkFvLlIwRkZhVUp0VG5aaWJURm9ZbWR2UmxwSFZqSlBha1U5"
+	conmanPrivateKey     = "RUHv3W4zXXdJ/3YqDm5xt1YLP823XrMoMt5xcDQ6ENeb1lim6G5Nry/KwfqucvyuIMGSIBpXYIlb/RH7mWnSLQ=="
+	conmanCertificate    = "GAEiBmNvbm1hbhLhAnYyLnB1YmxpYy5RMmQzU1ROdk0wUndkMWxSZUdJM09USlJTVk5FUVdwMGVXRlBTRVZvUkV0NWRqTmFRV2h2UTBkQlJXRkJhR2RHUjJkSldVSjRiME5IUVdkaFFXaG5RMGRuU1ZsQmVHOURSMEZ6WVVSVFNVeGFSMVl5V2xkNGRtTkhNV3hpYmxGcFRsZHplVXh1UWpGWmJYaHdXWGsxZEU5V2NGcGpTRlp2WkZaU2FFOUlXalZqTUdjeVkyMDFUVTlJU25CU1JVcHlZVlZHYUZacVNrUlRiR1JtVFVaSmRFNVhlSGROUjJ0MzJnSlIyNW90ZDBRbGVXdVJnN2x5M2ozUXV3RUNJRDRMTWp6cTV6U2RtWDRNRlpKb2ZIa0lOSFMxNWlhSEFFZ05XTlJjUzRpOFk4T2xza0pCTjZtMkJnLlIwRkZhVUp0VG5aaWJURm9ZbWR2UmxwSFZqSlBha1U5"
 )
 
 func generateIntermediateCert(
@@ -84,16 +84,19 @@ func generateIntermediateCert(
 func identityToken(
 	replID string,
 	user string,
+	userID int64,
 	slug string,
 ) (ed25519.PrivateKey, string, error) {
 	return tokenWithClaims(
 		replID,
 		user,
+		userID,
 		slug,
 		[]*api.CertificateClaim{
 			{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_IDENTITY}},
 			{Claim: &api.CertificateClaim_Replid{Replid: replID}},
 			{Claim: &api.CertificateClaim_User{User: user}},
+			{Claim: &api.CertificateClaim_UserId{UserId: userID}},
 		},
 	)
 }
@@ -101,16 +104,19 @@ func identityToken(
 func renewalToken(
 	replID string,
 	user string,
+	userID int64,
 	slug string,
 ) (ed25519.PrivateKey, string, error) {
 	return tokenWithClaims(
 		replID,
 		user,
+		userID,
 		slug,
 		[]*api.CertificateClaim{
 			{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_RENEW_IDENTITY}},
 			{Claim: &api.CertificateClaim_Replid{Replid: replID}},
 			{Claim: &api.CertificateClaim_User{User: user}},
+			{Claim: &api.CertificateClaim_UserId{UserId: userID}},
 		},
 	)
 }
@@ -118,12 +124,14 @@ func renewalToken(
 func tokenWithClaims(
 	replID string,
 	user string,
+	userID int64,
 	slug string,
 	claims []*api.CertificateClaim,
 ) (ed25519.PrivateKey, string, error) {
 	replIdentity := api.GovalReplIdentity{
 		Replid: replID,
 		User:   user,
+		UserId: userID,
 		Slug:   slug,
 		Aud:    replID,
 	}
@@ -167,12 +175,14 @@ func tokenWithClaims(
 func identityTokenWithOrigin(
 	replID string,
 	user string,
+	userID int64,
 	slug string,
 	originID string,
 ) (ed25519.PrivateKey, string, error) {
 	replIdentity := api.GovalReplIdentity{
 		Replid:       replID,
 		User:         user,
+		UserId:       userID,
 		Slug:         slug,
 		Aud:          replID,
 		OriginReplid: originID,
@@ -200,6 +210,7 @@ func identityTokenWithOrigin(
 			{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_IDENTITY}},
 			{Claim: &api.CertificateClaim_Replid{Replid: replIdentity.Replid}},
 			{Claim: &api.CertificateClaim_User{User: replIdentity.User}},
+			{Claim: &api.CertificateClaim_UserId{UserId: replIdentity.UserId}},
 		},
 		"conman",
 		36*time.Hour, // Repls can not live for more than 20-ish hours at the moment.
@@ -220,11 +231,13 @@ func identityTokenWithOrigin(
 func identityTokenAnyRepl(
 	replID string,
 	user string,
+	userID int64,
 	slug string,
 ) (ed25519.PrivateKey, string, error) {
 	replIdentity := api.GovalReplIdentity{
 		Replid: replID,
 		User:   user,
+		UserId: userID,
 		Slug:   slug,
 		Aud:    replID,
 	}
@@ -251,7 +264,9 @@ func identityTokenAnyRepl(
 			{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_IDENTITY}},
 			{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_RENEW_IDENTITY}},
 			{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_ANY_REPLID}},
+			{Claim: &api.CertificateClaim_Cluster{Cluster: "development"}},
 			{Claim: &api.CertificateClaim_User{User: replIdentity.User}},
+			{Claim: &api.CertificateClaim_UserId{UserId: replIdentity.UserId}},
 		},
 		"conman",
 		36*time.Hour, // Repls can not live for more than 20-ish hours at the moment.
@@ -273,11 +288,13 @@ func identityTokenAnyRepl(
 func multiTierIdentityToken(
 	replID string,
 	user string,
+	userID int64,
 	slug string,
 ) (ed25519.PrivateKey, string, error) {
 	replIdentity := api.GovalReplIdentity{
 		Replid: replID,
 		User:   user,
+		UserId: userID,
 		Slug:   slug,
 		Aud:    replID,
 	}
@@ -304,6 +321,7 @@ func multiTierIdentityToken(
 			{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_IDENTITY}},
 			{Claim: &api.CertificateClaim_Replid{Replid: replIdentity.Replid}},
 			{Claim: &api.CertificateClaim_User{User: replIdentity.User}},
+			{Claim: &api.CertificateClaim_UserId{UserId: replIdentity.UserId}},
 		},
 		"conman",
 		36*time.Hour, // Repls can not live for more than 20-ish hours at the moment.
@@ -319,6 +337,7 @@ func multiTierIdentityToken(
 			{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_IDENTITY}},
 			{Claim: &api.CertificateClaim_Replid{Replid: replIdentity.Replid + "-spoofed"}},
 			{Claim: &api.CertificateClaim_User{User: replIdentity.User}},
+			{Claim: &api.CertificateClaim_UserId{UserId: replIdentity.UserId}},
 		},
 		"conman",
 		36*time.Hour, // Repls can not live for more than 20-ish hours at the moment.
@@ -336,7 +355,7 @@ func multiTierIdentityToken(
 }
 
 func TestIdentity(t *testing.T) {
-	privkey, identity, err := identityToken("repl", "user", "slug")
+	privkey, identity, err := identityToken("repl", "user", 1, "slug")
 	require.NoError(t, err)
 
 	getPubKey := func(keyid, issuer string) (ed25519.PublicKey, error) {
@@ -380,6 +399,7 @@ func TestIdentity(t *testing.T) {
 
 	assert.Equal(t, "repl", replIdentity.Replid)
 	assert.Equal(t, "user", replIdentity.User)
+	assert.Equal(t, int64(1), replIdentity.UserId)
 	assert.Equal(t, "slug", replIdentity.Slug)
 }
 
@@ -389,10 +409,12 @@ func TestNoIdentityClaim(t *testing.T) {
 	privkey, identity, err := tokenWithClaims(
 		replID,
 		user,
+		1,
 		"slug",
 		// We're leaving out the IDENTITY claim
 		[]*api.CertificateClaim{
 			{Claim: &api.CertificateClaim_User{User: user}},
+			{Claim: &api.CertificateClaim_UserId{UserId: 1}},
 			{Claim: &api.CertificateClaim_Replid{Replid: replID}},
 		})
 	require.NoError(t, err)
@@ -430,7 +452,7 @@ func TestNoIdentityClaim(t *testing.T) {
 }
 
 func TestOriginIdentity(t *testing.T) {
-	privkey, identity, err := identityTokenWithOrigin("repl", "user", "slug", "origin")
+	privkey, identity, err := identityTokenWithOrigin("repl", "user", 1, "slug", "origin")
 	require.NoError(t, err)
 
 	getPubKey := func(keyid, issuer string) (ed25519.PublicKey, error) {
@@ -473,6 +495,7 @@ func TestOriginIdentity(t *testing.T) {
 
 	assert.Equal(t, "repl", replIdentity.Replid)
 	assert.Equal(t, "user", replIdentity.User)
+	assert.Equal(t, int64(1), replIdentity.UserId)
 	assert.Equal(t, "slug", replIdentity.Slug)
 	assert.Equal(t, "origin", replIdentity.OriginReplid)
 }
@@ -481,11 +504,12 @@ func TestLayeredIdentity(t *testing.T) {
 	layeredReplIdentity := api.GovalReplIdentity{
 		Replid: "a-b-c-d",
 		User:   "spoof",
+		UserId: 2,
 		Slug:   "spoofed",
 		Aud:    "another-audience",
 	}
 
-	privkey, identity, err := identityToken("repl", "user", "slug")
+	privkey, identity, err := identityToken("repl", "user", 1, "slug")
 	require.NoError(t, err)
 
 	getPubKey := func(keyid, issuer string) (ed25519.PublicKey, error) {
@@ -524,7 +548,7 @@ func TestLayeredIdentity(t *testing.T) {
 }
 
 func TestLayeredIdentityWithSpoofedCert(t *testing.T) {
-	privkey, identity, err := multiTierIdentityToken("repl", "user", "slug")
+	privkey, identity, err := multiTierIdentityToken("repl", "user", 1, "slug")
 	require.NoError(t, err)
 
 	getPubKey := func(keyid, issuer string) (ed25519.PublicKey, error) {
@@ -553,12 +577,18 @@ func TestAnyReplIDIdentity(t *testing.T) {
 	layeredReplIdentity := api.GovalReplIdentity{
 		Replid: "a-b-c-d",
 		User:   "user",
+		UserId: 1,
 		Slug:   "slug",
 		Aud:    "another-audience",
-		UserId: 1,
+		Runtime: &api.GovalReplIdentity_Interactive{
+			Interactive: &api.ReplRuntimeInteractive{
+				Cluster:    "development",
+				Subcluster: "",
+			},
+		},
 	}
 
-	privkey, identity, err := identityTokenAnyRepl("repl", "user", "slug")
+	privkey, identity, err := identityTokenAnyRepl("repl", "user", 1, "slug")
 	require.NoError(t, err)
 
 	getPubKey := func(keyid, issuer string) (ed25519.PublicKey, error) {
@@ -594,12 +624,77 @@ func TestAnyReplIDIdentity(t *testing.T) {
 
 	assert.Equal(t, "a-b-c-d", replIdentity.Replid)
 	assert.Equal(t, "user", replIdentity.User)
-	assert.Equal(t, "slug", replIdentity.Slug)
 	assert.Equal(t, int64(1), replIdentity.UserId)
+	assert.Equal(t, "slug", replIdentity.Slug)
+}
+
+func TestSpoofedRuntimeIdentity(t *testing.T) {
+	for i, layeredReplIdentity := range []*api.GovalReplIdentity{
+		{
+			Replid: "a-b-c-d",
+			User:   "user",
+			UserId: 1,
+			Slug:   "slug",
+			Aud:    "another-audience",
+			Runtime: &api.GovalReplIdentity_Interactive{
+				Interactive: &api.ReplRuntimeInteractive{
+					Cluster:    "development",
+					Subcluster: "foo",
+				},
+			},
+		},
+		{
+			Replid: "a-b-c-d",
+			User:   "user",
+			UserId: 1,
+			Slug:   "slug",
+			Aud:    "another-audience",
+			Runtime: &api.GovalReplIdentity_Deployment{
+				Deployment: &api.ReplRuntimeDeployment{},
+			},
+		},
+	} {
+		layeredReplIdentity := layeredReplIdentity
+		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
+			privkey, identity, err := identityTokenAnyRepl("repl", "user", 1, "slug")
+			require.NoError(t, err)
+
+			getPubKey := func(keyid, issuer string) (ed25519.PublicKey, error) {
+				if keyid != developmentKeyID {
+					return nil, nil
+				}
+				keyBytes, err := base64.StdEncoding.DecodeString(developmentPublicKey)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse public key as base64: %w", err)
+				}
+
+				return ed25519.PublicKey(keyBytes), nil
+			}
+
+			signingAuthority, err := NewSigningAuthority(
+				string(paserk.PrivateKeyToPASERKSecret(privkey)),
+				identity,
+				"repl",
+				getPubKey,
+			)
+			require.NoError(t, err)
+
+			// generate yet another layer using our key
+			token, err := signIdentity(privkey, signingAuthority.signingAuthority, layeredReplIdentity)
+			require.NoError(t, err)
+
+			_, err = VerifyIdentity(
+				token,
+				"another-audience",
+				getPubKey,
+			)
+			assert.Error(t, err)
+		})
+	}
 }
 
 func TestRenew(t *testing.T) {
-	privkey, identity, err := renewalToken("repl", "user", "slug")
+	privkey, identity, err := renewalToken("repl", "user", 1, "slug")
 	require.NoError(t, err)
 
 	getPubKey := func(keyid, issuer string) (ed25519.PublicKey, error) {
@@ -633,6 +728,7 @@ func TestRenew(t *testing.T) {
 
 	assert.Equal(t, "repl", replIdentity.Replid)
 	assert.Equal(t, "user", replIdentity.User)
+	assert.Equal(t, int64(1), replIdentity.UserId)
 	assert.Equal(t, "slug", replIdentity.Slug)
 }
 
@@ -640,6 +736,7 @@ func TestRenewNoClaim(t *testing.T) {
 	privkey, identity, err := tokenWithClaims(
 		"replid",
 		"user",
+		1,
 		"slug",
 		[]*api.CertificateClaim{
 			{Claim: &api.CertificateClaim_Replid{Replid: "replid"}},
