@@ -251,6 +251,7 @@ func identityTokenAnyRepl(
 			{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_IDENTITY}},
 			{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_RENEW_IDENTITY}},
 			{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_ANY_REPLID}},
+			{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_ANY_CLUSTER}},
 			{Claim: &api.CertificateClaim_User{User: replIdentity.User}},
 		},
 		"conman",
@@ -556,6 +557,12 @@ func TestAnyReplIDIdentity(t *testing.T) {
 		Slug:   "slug",
 		Aud:    "another-audience",
 		UserId: 1,
+		Runtime: &api.GovalReplIdentity_Interactive{
+			Interactive: &api.ReplRuntimeInteractive{
+				Cluster:    "development",
+				Subcluster: "",
+			},
+		},
 	}
 
 	privkey, identity, err := identityTokenAnyRepl("repl", "user", "slug")
@@ -596,6 +603,71 @@ func TestAnyReplIDIdentity(t *testing.T) {
 	assert.Equal(t, "user", replIdentity.User)
 	assert.Equal(t, "slug", replIdentity.Slug)
 	assert.Equal(t, int64(1), replIdentity.UserId)
+}
+
+func TestSpoofedRuntimeIdentity(t *testing.T) {
+	for i, layeredReplIdentity := range []*api.GovalReplIdentity{
+		{
+			Replid: "a-b-c-d",
+			User:   "user",
+			Slug:   "slug",
+			Aud:    "another-audience",
+			UserId: 1,
+			Runtime: &api.GovalReplIdentity_Interactive{
+				Interactive: &api.ReplRuntimeInteractive{
+					Cluster:    "development",
+					Subcluster: "foo",
+				},
+			},
+		},
+		{
+			Replid: "a-b-c-d",
+			User:   "user",
+			Slug:   "slug",
+			Aud:    "another-audience",
+			UserId: 1,
+			Runtime: &api.GovalReplIdentity_Deployment{
+				Deployment: &api.ReplRuntimeDeployment{},
+			},
+		},
+	} {
+		layeredReplIdentity := layeredReplIdentity
+		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
+			privkey, identity, err := identityTokenAnyRepl("repl", "user", "slug")
+			require.NoError(t, err)
+
+			getPubKey := func(keyid, issuer string) (ed25519.PublicKey, error) {
+				if keyid != developmentKeyID {
+					return nil, nil
+				}
+				keyBytes, err := base64.StdEncoding.DecodeString(developmentPublicKey)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse public key as base64: %w", err)
+				}
+
+				return ed25519.PublicKey(keyBytes), nil
+			}
+
+			signingAuthority, err := NewSigningAuthority(
+				string(paserk.PrivateKeyToPASERKSecret(privkey)),
+				identity,
+				"repl",
+				getPubKey,
+			)
+			require.NoError(t, err)
+
+			// generate yet another layer using our key
+			token, err := signIdentity(privkey, signingAuthority.signingAuthority, layeredReplIdentity)
+			require.NoError(t, err)
+
+			_, err = VerifyIdentity(
+				token,
+				"another-audience",
+				getPubKey,
+			)
+			assert.Error(t, err)
+		})
+	}
 }
 
 func TestRenew(t *testing.T) {
