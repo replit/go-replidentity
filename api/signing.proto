@@ -58,6 +58,10 @@ enum FlagClaim {
   // bearer to use Ghostwriter.
   GHOSTWRITER = 6;
 
+  // Cert has the authority to sign ReplToken messages that claim to be from
+  // a deployment.
+  DEPLOYMENTS = 10;
+
   // Cert has the authority to sign ReplToken messages for any ReplID. If this
   // claim is not set, the cert will only be able to emit tokens only for the
   // list explicitly enumerated by the other claims. If that list is empty, the
@@ -75,6 +79,12 @@ enum FlagClaim {
   // list explicitly enumerated by the other claims. If that list is empty, the
   // cert has no ability to sign any tokens.
   ANY_CLUSTER = 4;
+
+  // Cert has the authority to sign ReplToken messages for any subcluster. If this
+  // claim is not set, the cert will only be able to emit tokens only for the
+  // list explicitly enumerated by the other claims. If that list is empty and the
+  // identity token contains a subcluster, the identity token will be rejected.
+  ANY_SUBCLUSTER = 9;
 }
 
 // Claims are actions that a cert is allowed to do. Claims can be repeated (e.g.
@@ -97,6 +107,11 @@ message CertificateClaim {
     string user = 2;
     // This cert has the authority to sign messages in a certain cluster
     string cluster = 4;
+    // This cert has the authority to sign messages in a certain cluster
+    string subcluster = 5;
+    // This cert has the authority to sign messages that claim to come
+    // from a deployment.
+    bool deployment = 6;
     // This cert has the authority to perform an action as described in
     // FlagClaim
     FlagClaim flag = 3;
@@ -200,6 +215,18 @@ message GovalReplIdentity {
   // If this is a build repl for a hosting deployment, include extra
   // information about the specs of the build
   BuildInfo build_info = 8;
+  // A boolean indicating if the owner of the repl is a team.
+  bool is_team = 9;
+  // A list of roles for the user who owns the repl.
+  repeated string roles = 10;
+  // Runtime information about the Repl.
+  oneof runtime {
+    // This is set if the Repl is running interactively. This is not set when
+    // the Repl is running in hosting.
+    ReplRuntimeInteractive interactive = 11;
+    // This is set if the Repl is running in a Deployment.
+    ReplRuntimeDeployment deployment = 12;
+  }
 }
 
 // BuildInfo includes information about which deployment this repl is allowed to
@@ -218,3 +245,12 @@ message BuildInfo {
   // Tier refers to the GCE machine tier that will be used for the build
   string machine_tier = 4;
 }
+
+message ReplRuntimeInteractive {
+  // The cluster in which this Repl is running.
+  string cluster = 1;
+  // The subcluster in which this Repl is running.
+  string subcluster = 2;
+}
+
+message ReplRuntimeDeployment {}
