@@ -431,10 +431,9 @@ func verifyRawClaims(
 			}
 		}
 
-		// TODO: Reenable this once we understand what's going wrong.
-		// if deployment && !allowsDeployment {
-		//	return errors.New("not authorized (deployment)")
-		// }
+		if deployment && !allowsDeployment {
+			return errors.New("not authorized (deployment)")
+		}
 	}
 
 	return nil
