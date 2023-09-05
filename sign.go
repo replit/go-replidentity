@@ -76,6 +76,10 @@ func NewSigningAuthority(
 	}, nil
 }
 
+func (s *SigningAuthority) String() string {
+	return fmt.Sprintf("SigningAuthority{signingAuthority: %s, identity: %s}", s.signingAuthority, s.identity)
+}
+
 // Sign generates a new token that can be given to the provided audience, and
 // is resistant against forwarding, so that the recipient cannot forward this
 // token to another repl and claim it came directly from you.
