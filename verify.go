@@ -9,6 +9,7 @@ import (
 
 	"github.com/o1egl/paseto"
 	"golang.org/x/crypto/ed25519"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/replit/go-replidentity/api"
@@ -449,4 +450,121 @@ func verifyClaims(iat time.Time, exp time.Time, replid, user, cluster, subcluste
 	}
 
 	return verifyRawClaims(replid, user, cluster, subcluster, deployment, claims, false, false, false, false, false)
+}
+
+func decodeUnsafePASETO(token string) ([]byte, error) {
+	parts := strings.Split(token, ".")
+	if len(parts) != 4 {
+		return nil, fmt.Errorf("token not in PASETO format")
+	}
+	if parts[0] != "v2" || parts[1] != "public" {
+		return nil, fmt.Errorf("token does not start with v2.public.")
+	}
+	bytes, err := base64.RawURLEncoding.DecodeString(parts[2])
+	if err != nil {
+		return nil, fmt.Errorf("invalid token body payload: %w", err)
+	}
+	// v2.public tokens have a 64-byte signature after the main body.
+	bytes, err = base64.StdEncoding.DecodeString(string(bytes[:len(bytes)-64]))
+	if err != nil {
+		return nil, fmt.Errorf("invalid token body internal payload: %w", err)
+	}
+	return bytes, nil
+}
+
+func decodeUnsafeReplIdentity(token string) (*api.GovalReplIdentity, error) {
+	bytes, err := decodeUnsafePASETO(token)
+	if err != nil {
+		return nil, err
+	}
+	var replIdentity api.GovalReplIdentity
+	err = proto.Unmarshal(bytes, &replIdentity)
+	if err != nil {
+		return nil, fmt.Errorf("token body not an api.GovalReplIdentity: %w", err)
+	}
+	return &replIdentity, nil
+}
+
+func decodeUnsafeGovalCert(token string) (*api.GovalCert, error) {
+	bytes, err := decodeUnsafePASETO(token)
+	if err != nil {
+		return nil, err
+	}
+	var decodedCert api.GovalCert
+	err = proto.Unmarshal(bytes, &decodedCert)
+	if err != nil {
+		return nil, fmt.Errorf("token body not an api.GovalReplIdentity: %w", err)
+	}
+	return &decodedCert, nil
+}
+
+// DebugTokenAsString returns a string representation explaining a token. It does not perform any
+// validation of the token, and should be used only for debugging.
+func DebugTokenAsString(token string) string {
+	lines := []string{
+		"raw token:",
+		fmt.Sprintf("  %s", token),
+	}
+	marshalOptions := protojson.MarshalOptions{
+		Indent:    "  ",
+		Multiline: true,
+	}
+
+	// First dump the token contents.
+	lines = append(lines, "decoded token:")
+	replIdentity, err := decodeUnsafeReplIdentity(token)
+	if err != nil {
+		lines = append(lines, fmt.Sprintf("  token decode error: %v", err))
+		return strings.Join(lines, "\n")
+	}
+	for _, line := range strings.Split(marshalOptions.Format(replIdentity), "\n") {
+		lines = append(lines, fmt.Sprintf("  %s", line))
+	}
+	lines = append(lines, "signing authority chain:")
+
+	// Now dump the signing authority chain.
+	for {
+		signingAuthority, err := getSigningAuthority(token)
+		lines = append(lines, "  signing authority:")
+		if err != nil {
+			lines = append(lines, fmt.Sprintf("    signing authority unmarshal error: %v", err))
+			return strings.Join(lines, "\n")
+		}
+		for _, line := range strings.Split(marshalOptions.Format(signingAuthority), "\n") {
+			lines = append(lines, fmt.Sprintf("    %s", line))
+		}
+		if signingAuthority.GetKeyId() != "" {
+			break
+		}
+		lines = append(lines, "  certificate:")
+		token = signingAuthority.GetSignedCert()
+		cert, err := decodeUnsafeGovalCert(token)
+		if err != nil {
+			lines = append(lines, fmt.Sprintf("    cert unmarshal error: %v", err))
+			return strings.Join(lines, "\n")
+		}
+		for _, line := range strings.Split(marshalOptions.Format(cert), "\n") {
+			lines = append(lines, fmt.Sprintf("    %s", line))
+		}
+		lines = append(lines, "")
+	}
+
+	// This text is not supposed to be machine-readable, so let's make
+	// it extra hard for machines to parse this by word-wrapping (also makes
+	// it nice to print on a Repl).
+	const wordWrapCols = 60
+	var wrappedLines []string
+	for _, line := range lines {
+		indent := "  "
+		for i := 0; i < len(line) && line[i] == ' '; i++ {
+			indent += " "
+		}
+		for len(line) > wordWrapCols {
+			wrappedLines = append(wrappedLines, line[:wordWrapCols])
+			line = indent + line[wordWrapCols:]
+		}
+		wrappedLines = append(wrappedLines, line)
+	}
+	lines = wrappedLines
+	return strings.Join(lines, "\n")
 }
