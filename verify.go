@@ -253,6 +253,9 @@ func (v *verifier) checkClaimsAgainstToken(token *api.GovalReplIdentity) error {
 	case *api.GovalReplIdentity_Interactive:
 		cluster = v.Interactive.Cluster
 		subcluster = v.Interactive.Subcluster
+	case *api.GovalReplIdentity_Hosting:
+		cluster = v.Hosting.Cluster
+		subcluster = v.Hosting.Subcluster
 	}
 
 	return verifyRawClaims(

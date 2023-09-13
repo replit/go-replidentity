@@ -649,6 +649,19 @@ func TestSpoofedRuntimeIdentity(t *testing.T) {
 			UserId: 1,
 			Slug:   "slug",
 			Aud:    "another-audience",
+			Runtime: &api.GovalReplIdentity_Hosting{
+				Hosting: &api.ReplRuntimeHosting{
+					Cluster:    "development",
+					Subcluster: "foo",
+				},
+			},
+		},
+		{
+			Replid: "a-b-c-d",
+			User:   "user",
+			UserId: 1,
+			Slug:   "slug",
+			Aud:    "another-audience",
 			Runtime: &api.GovalReplIdentity_Deployment{
 				Deployment: &api.ReplRuntimeDeployment{},
 			},
