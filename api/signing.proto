@@ -232,6 +232,8 @@ message GovalReplIdentity {
     // This is set if the Repl is running interactively. This is not set when
     // the Repl is running in hosting.
     ReplRuntimeInteractive interactive = 11;
+    // This is set if the Repl is running in a hosting subcluster.
+    ReplRuntimeHosting hosting = 13;
     // This is set if the Repl is running in a Deployment.
     ReplRuntimeDeployment deployment = 12;
   }
@@ -255,6 +257,13 @@ message BuildInfo {
 }
 
 message ReplRuntimeInteractive {
+  // The cluster in which this Repl is running.
+  string cluster = 1;
+  // The subcluster in which this Repl is running.
+  string subcluster = 2;
+}
+
+message ReplRuntimeHosting {
   // The cluster in which this Repl is running.
   string cluster = 1;
   // The subcluster in which this Repl is running.
