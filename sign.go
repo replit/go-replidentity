@@ -7,8 +7,8 @@ import (
 	"fmt"
 
 	"github.com/o1egl/paseto"
-	"github.com/replit/go-replidentity/api"
 	"github.com/replit/go-replidentity/paserk"
+	"github.com/replit/go-replidentity/protos/external/goval/api"
 	"google.golang.org/protobuf/proto"
 )
 

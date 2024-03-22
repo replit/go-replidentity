@@ -2,10 +2,10 @@ syntax = "proto3";
 
 import "google/protobuf/timestamp.proto";
 
-import "api/client.proto";
+import "protos/external/goval/api/client.proto";
 
 package api;
-option go_package = "github.com/replit/go-replidentity/api";
+option go_package = "github.com/replit/go-replidentity/protos/external/goval/api";
 
 enum TokenVersion {
   // Body contains are bare ReplToken and must be decoded explicitly
