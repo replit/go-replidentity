@@ -7,7 +7,7 @@ require (
 	github.com/o1egl/paseto v1.0.0
 	github.com/stretchr/testify v1.8.0
 	golang.org/x/crypto v0.0.0-20220622213112-05595931fe9d
-	google.golang.org/protobuf v1.28.0
+	google.golang.org/protobuf v1.33.0
 )
 
 require (
