@@ -3,7 +3,7 @@ syntax = "proto3";
 import "google/protobuf/timestamp.proto";
 
 package api;
-option go_package = "github.com/replit/go-replidentity/api";
+option go_package = "github.com/replit/go-replidentity/protos/external/goval/api";
 
 // This message constitutes the repl metadata and define the repl we're
 // connecting to. All fields are required unless otherwise stated.
