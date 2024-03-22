@@ -14,8 +14,8 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/replit/go-replidentity/api"
 	"github.com/replit/go-replidentity/paserk"
+	"github.com/replit/go-replidentity/protos/external/goval/api"
 )
 
 const (
