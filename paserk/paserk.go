@@ -14,7 +14,7 @@ import (
 	"golang.org/x/crypto/ed25519"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/replit/go-replidentity/api"
+	"github.com/replit/go-replidentity/protos/external/goval/api"
 )
 
 const (

@@ -7,16 +7,16 @@ SUBDIRS := examples
 		--go_out=paths=source_relative:. \
 		$<
 
-./api/.proto.stamp: api/client.pb.go api/signing.pb.go
+./protos/external/goval/api/.proto.stamp: protos/external/goval/api/client.pb.go protos/external/goval/api/signing.pb.go
 	touch $@
 
-main: ./api/.proto.stamp
+main: ./protos/external/goval/api/.proto.stamp
 	go build .
 
-test: ./api/.proto.stamp
+test: ./protos/external/goval/api/.proto.stamp
 	go test .
 
-all: *.go ./api/.proto.stamp examples
+all: *.go ./protos/external/goval/api/.proto.stamp examples
 
 $(SUBDIRS):
 	$(MAKE) -C $@
