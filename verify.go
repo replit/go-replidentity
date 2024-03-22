@@ -12,8 +12,8 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/replit/go-replidentity/api"
 	"github.com/replit/go-replidentity/paserk"
+	"github.com/replit/go-replidentity/protos/external/goval/api"
 )
 
 type verifier struct {

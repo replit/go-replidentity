@@ -3,7 +3,6 @@ module github.com/replit/go-replidentity
 go 1.17
 
 require (
-	github.com/golang/protobuf v1.5.2
 	github.com/o1egl/paseto v1.0.0
 	github.com/stretchr/testify v1.8.0
 	golang.org/x/crypto v0.0.0-20220622213112-05595931fe9d
