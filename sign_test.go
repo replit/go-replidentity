@@ -382,7 +382,7 @@ func TestIdentity(t *testing.T) {
 
 	replIdentity, err := VerifyIdentity(
 		forwarded,
-		"testing",
+		[]string{"testing"},
 		getPubKey,
 	)
 	require.NoError(t, err)
@@ -391,7 +391,7 @@ func TestIdentity(t *testing.T) {
 	// (they're not guest forks, replID can be used)
 	_, err = VerifyIdentity(
 		forwarded,
-		"testing",
+		[]string{"testing"},
 		getPubKey,
 		WithSource("origin"),
 	)
@@ -443,7 +443,7 @@ func TestNoIdentityClaim(t *testing.T) {
 
 	_, err = VerifyIdentity(
 		forwarded,
-		"testing",
+		[]string{"testing"},
 		getPubKey,
 	)
 	// Check that we got a 'token not authorized for flag IDENTITY' error
@@ -479,7 +479,7 @@ func TestOriginIdentity(t *testing.T) {
 
 	replIdentity, err := VerifyIdentity(
 		forwarded,
-		"testing",
+		[]string{"testing"},
 		getPubKey,
 		WithSource("origin"),
 	)
@@ -487,7 +487,7 @@ func TestOriginIdentity(t *testing.T) {
 
 	_, err = VerifyIdentity(
 		forwarded,
-		"testing",
+		[]string{"testing"},
 		getPubKey,
 		WithSource("another-origin"),
 	)
@@ -541,7 +541,7 @@ func TestLayeredIdentity(t *testing.T) {
 		// the audience claim mismatch fails too early. we need to make sure we don't trust
 		// the wrong level of replid/user/slug, because another repl could use its private
 		// key to sign a spoofed identity with a "valid" audience.
-		"another-audience",
+		[]string{"another-audience"},
 		getPubKey,
 	)
 	require.Error(t, err)
@@ -617,7 +617,7 @@ func TestAnyReplIDIdentity(t *testing.T) {
 
 	replIdentity, err := VerifyIdentity(
 		token,
-		"another-audience",
+		[]string{"another-audience"},
 		getPubKey,
 	)
 	require.NoError(t, err)
@@ -698,7 +698,7 @@ func TestSpoofedRuntimeIdentity(t *testing.T) {
 
 			_, err = VerifyIdentity(
 				token,
-				"another-audience",
+				[]string{"another-audience"},
 				getPubKey,
 			)
 			assert.Error(t, err)
@@ -734,7 +734,7 @@ func TestRenew(t *testing.T) {
 
 	replIdentity, err := VerifyRenewIdentity(
 		forwarded,
-		"testing",
+		[]string{"testing"},
 		getPubKey,
 	)
 	require.NoError(t, err)
@@ -782,7 +782,7 @@ func TestRenewNoClaim(t *testing.T) {
 
 	_, err = VerifyRenewIdentity(
 		forwarded,
-		"testing",
+		[]string{"testing"},
 		getPubKey,
 	)
 	require.Error(t, err)
