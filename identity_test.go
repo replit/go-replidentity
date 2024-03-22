@@ -43,7 +43,7 @@ func Example() {
 	// Verify the signed token, pretending we are the target repl.
 	replIdentity, err := replidentity.VerifyIdentity(
 		signedToken,
-		targetRepl,
+		[]string{targetRepl},
 		replidentity.ReadPublicKeyFromEnv,
 	)
 	if err != nil {
@@ -97,7 +97,7 @@ func ExampleRenew() {
 	// Verify the signed token, pretending we are the target repl.
 	replIdentity, err := replidentity.VerifyRenewIdentity(
 		signedToken,
-		targetRepl,
+		[]string{targetRepl},
 		replidentity.ReadPublicKeyFromEnv,
 	)
 	if err != nil {
