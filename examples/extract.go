@@ -25,7 +25,7 @@ func main() {
 	// audience := os.Getenv("REPL_ID") // uncomment this on the other Repl.
 	replIdentity, err := replidentity.VerifyIdentity(
 		identityToken,
-		audience,
+		[]string{audience},
 		replidentity.ReadPublicKeyFromEnv,
 	)
 	if err != nil {

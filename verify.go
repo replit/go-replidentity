@@ -311,7 +311,7 @@ func WithSource(sourceReplid string) VerifyOption {
 // (the `REPL_ID` of the recipient).
 //
 // The optional options allow specifying additional verifications on the identity.
-func VerifyIdentity(message string, audience string, getPubKey PubKeySource, options ...VerifyOption) (*api.GovalReplIdentity, error) {
+func VerifyIdentity(message string, audience []string, getPubKey PubKeySource, options ...VerifyOption) (*api.GovalReplIdentity, error) {
 	opts := VerifyTokenOpts{
 		Message:   message,
 		Audience:  audience,
@@ -328,7 +328,7 @@ func VerifyIdentity(message string, audience string, getPubKey PubKeySource, opt
 // identity.
 //
 // The optional options allow specifying additional verifications on the identity.
-func VerifyRenewIdentity(message string, audience string, getPubKey PubKeySource, options ...VerifyOption) (*api.GovalReplIdentity, error) {
+func VerifyRenewIdentity(message string, audience []string, getPubKey PubKeySource, options ...VerifyOption) (*api.GovalReplIdentity, error) {
 	opts := VerifyTokenOpts{
 		Message:   message,
 		Audience:  audience,
@@ -341,7 +341,7 @@ func VerifyRenewIdentity(message string, audience string, getPubKey PubKeySource
 
 type VerifyTokenOpts struct {
 	Message   string
-	Audience  string
+	Audience  []string
 	GetPubKey PubKeySource
 	Options   []VerifyOption
 	Flags     []api.FlagClaim
@@ -375,7 +375,14 @@ func VerifyToken(opts VerifyTokenOpts) (*api.GovalReplIdentity, error) {
 		}
 	}
 
-	if opts.Audience != identity.Aud {
+	var validAudience bool
+	for _, aud := range opts.Audience {
+		if aud == identity.Aud {
+			validAudience = true
+			break
+		}
+	}
+	if !validAudience {
 		return nil, fmt.Errorf("message identity mismatch. expected %q, got %q", opts.Audience, identity.Aud)
 	}
 
