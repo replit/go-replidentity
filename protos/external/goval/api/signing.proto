@@ -2,11 +2,11 @@ syntax = "proto3";
 
 import "google/protobuf/timestamp.proto";
 
-import "api/token/token.proto";
-import "api/repl/repl.proto";
 
-package replit.goval.api;
-option go_package = "github.com/replit/goval/api";
+import "protos/external/goval/api/client.proto";
+
+package api;
+option go_package = "github.com/replit/go-replidentity/protos/external/goval/api";
 
 enum TokenVersion {
   // Body contains are bare ReplToken and must be decoded explicitly
@@ -192,7 +192,7 @@ message GovalToken {
   // fields. ReplToken has its own iat, exp, and replid for legacy reasons.
   oneof Token {
     // This token is used to authorize a request to create a repl in goval
-    replit.goval.api.token.ReplToken repl_token = 4;
+    ReplToken repl_token = 4;
 
     // This token is used to prove a Repl's identity.
     GovalReplIdentity repl_identity = 5;
@@ -223,7 +223,7 @@ message GovalReplIdentity {
   int64 user_id = 7;
   // If this is a build repl for a hosting deployment, include extra
   // information about the specs of the build
-  repl.BuildInfo build_info = 8;
+  BuildInfo build_info = 8;
   // A boolean indicating if the owner of the repl is a team.
   bool is_team = 9;
   // A list of roles for the user who owns the repl.
@@ -239,7 +239,24 @@ message GovalReplIdentity {
     ReplRuntimeDeployment deployment = 12;
   }
   // The organization that owns the Repl
-  repl.Org org = 14;
+  Org org = 14;
+}
+
+// BuildInfo includes information about which deployment this repl is allowed to
+// create or update.
+message BuildInfo {
+  // ID is a unique identitifier for the deployment that this builder repl is
+  // allowed to push to.
+  string deployment_id = 1;
+
+  // URL is the replit.app URL that will be used for the deployment.
+  string url = 2;
+
+  // Build ID is a unique identifier for this particular deployment build
+  string build_id = 3;
+
+  // Tier refers to the GCE machine tier that will be used for the build
+  string machine_tier = 4;
 }
 
 message ReplRuntimeInteractive {
@@ -257,3 +274,17 @@ message ReplRuntimeHosting {
 }
 
 message ReplRuntimeDeployment {}
+
+// Org contains information about the org to which a Repl belongs.
+message Org {
+  // Organization type. There are legacy types, but we are not
+  // supporting them, and they should not be getting passed.
+  enum OrgType {
+    TYPE_UNSPECIFIED = 0;
+    PERSONAL = 1;
+    TEAM = 2;
+  }
+
+  string id = 1;
+  OrgType type = 2;
+}
