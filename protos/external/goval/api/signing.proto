@@ -81,6 +81,12 @@ enum FlagClaim {
   // cert has no ability to sign any tokens that have a user id.
   ANY_USER_ID = 11;
 
+  // Cert has the authority to sign ReplToken messages for any org. If this
+  // claim is not set, the cert will only be able to emit tokens only for the
+  // list explicitly enumerated by the other claims. If that list is empty, the
+  // cert has no ability to sign any tokens that have an org.
+  ANY_ORG = 12;
+
   // Cert has the authority to sign ReplToken messages for any cluster. If this
   // claim is not set, the cert will only be able to emit tokens only for the
   // list explicitly enumerated by the other claims. If that list is empty, the
@@ -114,6 +120,8 @@ message CertificateClaim {
     string user = 2;
     // This cert has the authority to sign messages on behalf of a user id
     int64 user_id = 7;
+    // This cert has the authority to sign messages on behalf of an org
+    Org org = 8;
     // This cert has the authority to sign messages in a certain cluster
     string cluster = 4;
     // This cert has the authority to sign messages in a certain subcluster

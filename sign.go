@@ -91,6 +91,7 @@ func (a *SigningAuthority) Sign(audience string) (string, error) {
 		Aud:          audience,
 		OriginReplid: a.identity.OriginReplid,
 		UserId:       a.identity.UserId,
+		Org:          a.identity.Org,
 		BuildInfo:    a.identity.BuildInfo,
 		IsTeam:       a.identity.IsTeam,
 		Roles:        a.identity.Roles,
