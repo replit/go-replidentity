@@ -20,9 +20,15 @@ type MessageClaims struct {
 	Repls       map[string]struct{}
 	Users       map[string]struct{}
 	UserIDs     map[int64]struct{}
+	Orgs        map[OrgKey]struct{}
 	Clusters    map[string]struct{}
 	Subclusters map[string]struct{}
 	Flags       map[api.FlagClaim]struct{}
+}
+
+type OrgKey struct {
+	Id  string
+	Typ api.Org_OrgType
 }
 
 func parseClaims(cert *api.GovalCert) *MessageClaims {
@@ -34,6 +40,7 @@ func parseClaims(cert *api.GovalCert) *MessageClaims {
 		Repls:       map[string]struct{}{},
 		Users:       map[string]struct{}{},
 		UserIDs:     map[int64]struct{}{},
+		Orgs:        map[OrgKey]struct{}{},
 		Clusters:    map[string]struct{}{},
 		Subclusters: map[string]struct{}{},
 		Flags:       map[api.FlagClaim]struct{}{},
@@ -49,6 +56,13 @@ func parseClaims(cert *api.GovalCert) *MessageClaims {
 
 		case *api.CertificateClaim_UserId:
 			claims.UserIDs[typedClaim.UserId] = struct{}{}
+
+		case *api.CertificateClaim_Org:
+			orgKey := OrgKey{
+				Id:  typedClaim.Org.Id,
+				Typ: typedClaim.Org.Type,
+			}
+			claims.Orgs[orgKey] = struct{}{}
 
 		case *api.CertificateClaim_Cluster:
 			claims.Clusters[typedClaim.Cluster] = struct{}{}
