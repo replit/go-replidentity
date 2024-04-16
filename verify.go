@@ -258,19 +258,21 @@ func (v *verifier) checkClaimsAgainstToken(token *api.GovalReplIdentity) error {
 		subcluster = v.Hosting.Subcluster
 	}
 
-	return verifyRawClaims(
-		token.Replid,
-		token.User,
-		cluster,
-		subcluster,
-		deployment,
-		v.claims,
-		v.anyReplid,
-		v.anyUser,
-		v.anyCluster,
-		v.anySubcluster,
-		v.deployments,
-	)
+	opts := verifyRawClaimsOpts{
+		replid:           token.Replid,
+		user:             token.User,
+		cluster:          cluster,
+		subcluster:       subcluster,
+		deployment:       deployment,
+		claims:           v.claims,
+		anyReplid:        v.anyReplid,
+		anyUser:          v.anyUser,
+		anyCluster:       v.anyCluster,
+		anySubcluster:    v.anySubcluster,
+		allowsDeployment: v.deployments,
+	}
+
+	return verifyRawClaims(opts)
 }
 
 // VerifyOption specifies an additional verification step to be performed on an identity.
@@ -411,38 +413,49 @@ func VerifyToken(opts VerifyTokenOpts) (*api.GovalReplIdentity, error) {
 	return &identity, nil
 }
 
+type verifyRawClaimsOpts struct {
+	replid           string
+	user             string
+	cluster          string
+	subcluster       string
+	deployment       bool
+	claims           *MessageClaims
+	anyReplid        bool
+	anyUser          bool
+	anyCluster       bool
+	anySubcluster    bool
+	allowsDeployment bool
+}
+
 func verifyRawClaims(
-	replid, user, cluster, subcluster string,
-	deployment bool,
-	claims *MessageClaims,
-	anyReplid, anyUser, anyCluster, anySubcluster, allowsDeployment bool,
+	opts verifyRawClaimsOpts,
 ) error {
-	if claims != nil {
-		if replid != "" && !anyReplid {
-			if _, ok := claims.Repls[replid]; !ok {
+	if opts.claims != nil {
+		if opts.replid != "" && !opts.anyReplid {
+			if _, ok := opts.claims.Repls[opts.replid]; !ok {
 				return errors.New("not authorized (replid)")
 			}
 		}
 
-		if user != "" && !anyUser {
-			if _, ok := claims.Users[user]; !ok {
+		if opts.user != "" && !opts.anyUser {
+			if _, ok := opts.claims.Users[opts.user]; !ok {
 				return errors.New("not authorized (user)")
 			}
 		}
 
-		if cluster != "" && !anyCluster {
-			if _, ok := claims.Clusters[cluster]; !ok {
+		if opts.cluster != "" && !opts.anyCluster {
+			if _, ok := opts.claims.Clusters[opts.cluster]; !ok {
 				return errors.New("not authorized (cluster)")
 			}
 		}
 
-		if subcluster != "" && !anySubcluster {
-			if _, ok := claims.Subclusters[subcluster]; !ok {
+		if opts.subcluster != "" && !opts.anySubcluster {
+			if _, ok := opts.claims.Subclusters[opts.subcluster]; !ok {
 				return errors.New("not authorized (subcluster)")
 			}
 		}
 
-		if deployment && !allowsDeployment {
+		if opts.deployment && !opts.allowsDeployment {
 			return errors.New("not authorized (deployment)")
 		}
 	}
@@ -459,7 +472,16 @@ func verifyClaims(iat time.Time, exp time.Time, replid, user, cluster, subcluste
 		return fmt.Errorf("expired %s ago", time.Since(exp))
 	}
 
-	return verifyRawClaims(replid, user, cluster, subcluster, deployment, claims, false, false, false, false, false)
+	opts := verifyRawClaimsOpts{
+		replid:     replid,
+		user:       user,
+		cluster:    cluster,
+		subcluster: subcluster,
+		deployment: deployment,
+		claims:     claims,
+	}
+
+	return verifyRawClaims(opts)
 }
 
 func decodeUnsafePASETO(token string) ([]byte, error) {
