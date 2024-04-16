@@ -23,6 +23,7 @@ type verifier struct {
 	anyReplid     bool
 	anyUser       bool
 	anyUserID     bool
+	anyOrg        bool
 	anyCluster    bool
 	anySubcluster bool
 	deployments   bool
@@ -81,7 +82,7 @@ func (v *verifier) verifyCert(certBytes []byte, signingCert *api.GovalCert) (*ap
 	}
 
 	// Verify that the cert is valid
-	err = verifyClaims(cert.Iat.AsTime(), cert.Exp.AsTime(), "", "", "", "", false, nil)
+	err = verifyClaims(cert.Iat.AsTime(), cert.Exp.AsTime(), "", "", "", "", "", 0, false, nil)
 	if err != nil {
 		return nil, fmt.Errorf("cert is not valid: %w", err)
 	}
@@ -96,7 +97,7 @@ func (v *verifier) verifyCert(certBytes []byte, signingCert *api.GovalCert) (*ap
 
 		// Verify the cert claims agrees with its signer
 		authorizedClaims := map[string]struct{}{}
-		var anyReplid, anyUser, anyUserID, anyCluster, anySubcluster, deployments bool
+		var anyReplid, anyUser, anyUserID, anyOrg, anyCluster, anySubcluster, deployments bool
 		for _, claim := range signingCert.Claims {
 			authorizedClaims[claim.String()] = struct{}{}
 			switch tc := claim.Claim.(type) {
@@ -109,6 +110,9 @@ func (v *verifier) verifyCert(certBytes []byte, signingCert *api.GovalCert) (*ap
 				}
 				if tc.Flag == api.FlagClaim_ANY_USER_ID {
 					anyUserID = true
+				}
+				if tc.Flag == api.FlagClaim_ANY_ORG {
+					anyOrg = true
 				}
 				if tc.Flag == api.FlagClaim_ANY_CLUSTER {
 					anyCluster = true
@@ -134,6 +138,9 @@ func (v *verifier) verifyCert(certBytes []byte, signingCert *api.GovalCert) (*ap
 				if tc.Flag == api.FlagClaim_ANY_USER_ID {
 					v.anyUserID = true
 				}
+				if tc.Flag == api.FlagClaim_ANY_ORG {
+					v.anyOrg = true
+				}
 				if tc.Flag == api.FlagClaim_ANY_CLUSTER {
 					v.anyCluster = true
 				}
@@ -153,6 +160,10 @@ func (v *verifier) verifyCert(certBytes []byte, signingCert *api.GovalCert) (*ap
 				}
 			case *api.CertificateClaim_UserId:
 				if anyUserID {
+					continue
+				}
+			case *api.CertificateClaim_Org:
+				if anyOrg {
 					continue
 				}
 			case *api.CertificateClaim_Cluster:
@@ -258,7 +269,27 @@ func (v *verifier) checkClaimsAgainstToken(token *api.GovalReplIdentity) error {
 		subcluster = v.Hosting.Subcluster
 	}
 
+	opts := verifyRawClaimsOpts{
+		replid:           token.Replid,
+		user:             token.User,
+		cluster:          cluster,
 		subcluster:       subcluster,
+		deployment:       deployment,
+		claims:           v.claims,
+		anyReplid:        v.anyReplid,
+		anyUser:          v.anyUser,
+		anyCluster:       v.anyCluster,
+		anyOrg:           v.anyOrg,
+		anySubcluster:    v.anySubcluster,
+		allowsDeployment: v.deployments,
+	}
+
+	if token.Org != nil {
+		opts.orgId = token.GetOrg().GetId()
+		opts.orgType = token.GetOrg().GetType()
+	}
+
+	return verifyRawClaims(opts)
 }
 
 // VerifyOption specifies an additional verification step to be performed on an identity.
@@ -410,7 +441,10 @@ type verifyRawClaimsOpts struct {
 	anyUser          bool
 	anyCluster       bool
 	anySubcluster    bool
+	anyOrg           bool
 	allowsDeployment bool
+	orgId            string
+	orgType          api.Org_OrgType
 }
 
 func verifyRawClaims(
@@ -426,6 +460,16 @@ func verifyRawClaims(
 		if opts.user != "" && !opts.anyUser {
 			if _, ok := opts.claims.Users[opts.user]; !ok {
 				return errors.New("not authorized (user)")
+			}
+		}
+
+		if opts.orgId != "" && !opts.anyOrg {
+			orgKey := OrgKey{
+				Id:  opts.orgId,
+				Typ: opts.orgType,
+			}
+			if _, ok := opts.claims.Orgs[orgKey]; !ok {
+				return errors.New("not authorized (orgId)")
 			}
 		}
 
@@ -449,7 +493,7 @@ func verifyRawClaims(
 	return nil
 }
 
-func verifyClaims(iat time.Time, exp time.Time, replid, user, cluster, subcluster string, deployment bool, claims *MessageClaims) error {
+func verifyClaims(iat time.Time, exp time.Time, replid, user, cluster, subcluster, orgId string, orgType api.Org_OrgType, deployment bool, claims *MessageClaims) error {
 	if iat.After(time.Now()) {
 		return fmt.Errorf("not valid for %s", time.Until(iat))
 	}
@@ -461,6 +505,8 @@ func verifyClaims(iat time.Time, exp time.Time, replid, user, cluster, subcluste
 	opts := verifyRawClaimsOpts{
 		replid:     replid,
 		user:       user,
+		orgId:      orgId,
+		orgType:    orgType,
 		cluster:    cluster,
 		subcluster: subcluster,
 		deployment: deployment,
