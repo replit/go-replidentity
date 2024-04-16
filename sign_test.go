@@ -21,8 +21,8 @@ import (
 const (
 	developmentKeyID     = "dev:1"
 	developmentPublicKey = "on0FkSmEC+ce40V9Vc4QABXSx6TXo+lhp99b6Ka0gro="
-	conmanPrivateKey     = "RUHv3W4zXXdJ/3YqDm5xt1YLP823XrMoMt5xcDQ6ENeb1lim6G5Nry/KwfqucvyuIMGSIBpXYIlb/RH7mWnSLQ=="
-	conmanCertificate    = "GAEiBmNvbm1hbhLhAnYyLnB1YmxpYy5RMmQzU1ROdk0wUndkMWxSZUdJM09USlJTVk5FUVdwMGVXRlBTRVZvUkV0NWRqTmFRV2h2UTBkQlJXRkJhR2RHUjJkSldVSjRiME5IUVdkaFFXaG5RMGRuU1ZsQmVHOURSMEZ6WVVSVFNVeGFSMVl5V2xkNGRtTkhNV3hpYmxGcFRsZHplVXh1UWpGWmJYaHdXWGsxZEU5V2NGcGpTRlp2WkZaU2FFOUlXalZqTUdjeVkyMDFUVTlJU25CU1JVcHlZVlZHYUZacVNrUlRiR1JtVFVaSmRFNVhlSGROUjJ0MzJnSlIyNW90ZDBRbGVXdVJnN2x5M2ozUXV3RUNJRDRMTWp6cTV6U2RtWDRNRlpKb2ZIa0lOSFMxNWlhSEFFZ05XTlJjUzRpOFk4T2xza0pCTjZtMkJnLlIwRkZhVUp0VG5aaWJURm9ZbWR2UmxwSFZqSlBha1U5"
+	conmanPrivateKey     = "mRe4Bu9PG4Tq52M6LXp2oRcljhOjhJ43+x4AjPsPHaOkImeb6EduKRzVok/pADoVeNa8XEWAbly+Wipo7qPM4Q=="
+	conmanCertificate    = "GAEiBmNvbm1hbhLrAnYyLnB1YmxpYy5RMmR6U1d0TGRqZHpRVmxSTlhJMk0xWkNTVXhEU2k5dU1qVkJVMFZKVEVSME1WRmhRV2huUWtkblNWbENVbTlEUjBGallVRm9aMHRIWjBsM1FWSnZRMGRCU1dGQmFHZEVSMmRKV1VONGIwTkhRWGRoUkZOSlRGcEhWakphVjNoMlkwY3hiR0p1VVdsT1YzTjVURzVDTVZsdGVIQlplVFYzVVRCd2RXSlRNVzlUUjBwd1lUSk5lRmxWY0ZGT2JFWkNUbXRhV1dGc1pESlNibWhIV2pCak1Wa3pXbk5pTTBab1ZIcGFjV1ZyT1VaZ29sMmlPZkRIQ3pNSEF1SFJBM2F5MlRRZVV0SU1ySzN5VHNzVC1HcUM0ekl4a3NFRmVTc0hWbFlTSVlOOTkyd0diY1pyQW0zM1RrOHJ0UFZvWll3Ry5SMEZGYVVKdFRuWmliVEZvWW1kdlJscEhWakpQYWtVOQ=="
 )
 
 func generateIntermediateCert(
@@ -92,11 +92,43 @@ func identityToken(
 		user,
 		userID,
 		slug,
+		"", // orgId
+		0,  // orgType
 		[]*api.CertificateClaim{
 			{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_IDENTITY}},
 			{Claim: &api.CertificateClaim_Replid{Replid: replID}},
 			{Claim: &api.CertificateClaim_User{User: user}},
 			{Claim: &api.CertificateClaim_UserId{UserId: userID}},
+		},
+	)
+}
+
+func identityTokenWithOrg(
+	replID string,
+	user string,
+	userID int64,
+	slug string,
+	orgID string,
+	orgType api.Org_OrgType,
+) (ed25519.PrivateKey, string, error) {
+	return tokenWithClaims(
+		replID,
+		user,
+		userID,
+		slug,
+		orgID,
+		orgType,
+		[]*api.CertificateClaim{
+			{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_IDENTITY}},
+			{Claim: &api.CertificateClaim_Replid{Replid: replID}},
+			{Claim: &api.CertificateClaim_User{User: user}},
+			{Claim: &api.CertificateClaim_UserId{UserId: userID}},
+			{Claim: &api.CertificateClaim_Org{
+				Org: &api.Org{
+					Id:   orgID,
+					Type: orgType,
+				},
+			}},
 		},
 	)
 }
@@ -112,6 +144,8 @@ func renewalToken(
 		user,
 		userID,
 		slug,
+		"", // orgId
+		0,  // orgType
 		[]*api.CertificateClaim{
 			{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_RENEW_IDENTITY}},
 			{Claim: &api.CertificateClaim_Replid{Replid: replID}},
@@ -126,6 +160,8 @@ func tokenWithClaims(
 	user string,
 	userID int64,
 	slug string,
+	orgId string,
+	orgType api.Org_OrgType,
 	claims []*api.CertificateClaim,
 ) (ed25519.PrivateKey, string, error) {
 	replIdentity := api.GovalReplIdentity{
@@ -134,6 +170,13 @@ func tokenWithClaims(
 		UserId: userID,
 		Slug:   slug,
 		Aud:    replID,
+	}
+
+	if orgId != "" {
+		replIdentity.Org = &api.Org{
+			Id:   orgId,
+			Type: orgType,
+		}
 	}
 
 	var conmanAuthority api.GovalSigningAuthority
@@ -411,6 +454,8 @@ func TestNoIdentityClaim(t *testing.T) {
 		user,
 		1,
 		"slug",
+		"",
+		0,
 		// We're leaving out the IDENTITY claim
 		[]*api.CertificateClaim{
 			{Claim: &api.CertificateClaim_User{User: user}},
@@ -751,6 +796,8 @@ func TestRenewNoClaim(t *testing.T) {
 		"user",
 		1,
 		"slug",
+		"", // org Id
+		0,  // org type
 		[]*api.CertificateClaim{
 			{Claim: &api.CertificateClaim_Replid{Replid: "replid"}},
 			{Claim: &api.CertificateClaim_User{User: "user"}},
@@ -786,4 +833,178 @@ func TestRenewNoClaim(t *testing.T) {
 		getPubKey,
 	)
 	require.Error(t, err)
+}
+
+func TestIdentityWithOrgID(t *testing.T) {
+	privkey, identity, err := identityTokenWithOrg("repl", "user", 1, "slug", "acmecorp", api.Org_TEAM)
+	require.NoError(t, err)
+
+	getPubKey := func(keyid, issuer string) (ed25519.PublicKey, error) {
+		if keyid != developmentKeyID {
+			return nil, nil
+		}
+		keyBytes, err := base64.StdEncoding.DecodeString(developmentPublicKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse public key as base64: %w", err)
+		}
+
+		return ed25519.PublicKey(keyBytes), nil
+	}
+
+	signingAuthority, err := NewSigningAuthority(
+		string(paserk.PrivateKeyToPASERKSecret(privkey)),
+		identity,
+		"repl",
+		getPubKey,
+	)
+	require.NoError(t, err)
+	forwarded, err := signingAuthority.Sign("testing")
+	require.NoError(t, err)
+
+	replIdentity, err := VerifyIdentity(
+		forwarded,
+		[]string{"testing"},
+		getPubKey,
+	)
+	require.NoError(t, err)
+
+	// identities without origin repl IDs are accepted by default
+	// (they're not guest forks, replID can be used)
+	_, err = VerifyIdentity(
+		forwarded,
+		[]string{"testing"},
+		getPubKey,
+		WithSource("origin"),
+	)
+	require.NoError(t, err)
+
+	assert.Equal(t, "repl", replIdentity.Replid)
+	assert.Equal(t, "user", replIdentity.User)
+	assert.Equal(t, int64(1), replIdentity.UserId)
+	assert.Equal(t, "slug", replIdentity.Slug)
+	assert.Equal(t, "acmecorp", replIdentity.Org.Id)
+}
+
+func TestIdentityWithOrgIDFail(t *testing.T) {
+	replID := "repl"
+	user := "user"
+	var userID int64 = 1
+	slug := "slug"
+	orgID := "acmecorp"
+	orgType := api.Org_PERSONAL
+
+	tcs := []struct {
+		name   string
+		claims []*api.CertificateClaim
+	}{
+		{
+			name: "missing org claim",
+			claims: []*api.CertificateClaim{
+				{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_IDENTITY}},
+				{Claim: &api.CertificateClaim_Replid{Replid: "repl"}},
+				{Claim: &api.CertificateClaim_User{User: "user"}},
+				{Claim: &api.CertificateClaim_UserId{UserId: 1}},
+			},
+		},
+		{
+			name: "org id mismatch",
+			claims: []*api.CertificateClaim{
+				{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_IDENTITY}},
+				{Claim: &api.CertificateClaim_Replid{Replid: "repl"}},
+				{Claim: &api.CertificateClaim_User{User: "user"}},
+				{Claim: &api.CertificateClaim_UserId{UserId: 1}},
+				{Claim: &api.CertificateClaim_Org{
+					Org: &api.Org{
+						Id:   "wrong-org-id",
+						Type: orgType,
+					}},
+				},
+			},
+		},
+		{
+			name: "org type mismatch",
+			claims: []*api.CertificateClaim{
+				{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_IDENTITY}},
+				{Claim: &api.CertificateClaim_Replid{Replid: "repl"}},
+				{Claim: &api.CertificateClaim_User{User: "user"}},
+				{Claim: &api.CertificateClaim_UserId{UserId: 1}},
+				{Claim: &api.CertificateClaim_Org{
+					Org: &api.Org{
+						Id:   orgID,
+						Type: orgType + 1,
+					}},
+				},
+			},
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			identity := api.GovalReplIdentity{
+				Replid: replID,
+				User:   user,
+				UserId: userID,
+				Slug:   slug,
+				Aud:    replID,
+				Org: &api.Org{
+					Id:   orgID,
+					Type: orgType,
+				},
+			}
+
+			privkey, marshaledIdentity, err := tokenWithClaims(
+				replID,
+				user,
+				userID,
+				slug,
+				orgID,
+				orgType,
+				tc.claims,
+			)
+			require.NoError(t, err)
+
+			getPubKey := func(keyid, issuer string) (ed25519.PublicKey, error) {
+				if keyid != developmentKeyID {
+					return nil, nil
+				}
+				keyBytes, err := base64.StdEncoding.DecodeString(developmentPublicKey)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse public key as base64: %w", err)
+				}
+
+				return ed25519.PublicKey(keyBytes), nil
+			}
+
+			_, err = NewSigningAuthority(
+				string(paserk.PrivateKeyToPASERKSecret(privkey)),
+				marshaledIdentity,
+				"repl",
+				getPubKey,
+			)
+			require.Error(t, err)
+			assert.Equal(t, "claim mismatch: not authorized (orgId)", err.Error())
+
+			// check that, if we were to sign the token, the
+			// receiving party would also not be able to verify it
+			sa, err := getSigningAuthority(marshaledIdentity)
+			require.NoError(t, err)
+
+			signingAuthority := &SigningAuthority{
+				privateKey:       privkey,
+				signingAuthority: sa,
+				identity:         &identity,
+			}
+
+			forwarded, err := signingAuthority.Sign("testing")
+			require.NoError(t, err)
+
+			_, err = VerifyIdentity(
+				forwarded,
+				[]string{"testing"},
+				getPubKey,
+			)
+			require.Error(t, err)
+			assert.Equal(t, "claim mismatch: not authorized (orgId)", err.Error())
+		})
+	}
 }
