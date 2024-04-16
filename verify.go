@@ -258,7 +258,21 @@ func (v *verifier) checkClaimsAgainstToken(token *api.GovalReplIdentity) error {
 		subcluster = v.Hosting.Subcluster
 	}
 
+	opts := verifyRawClaimsOpts{
+		replid:           token.Replid,
+		user:             token.User,
+		cluster:          cluster,
 		subcluster:       subcluster,
+		deployment:       deployment,
+		claims:           v.claims,
+		anyReplid:        v.anyReplid,
+		anyUser:          v.anyUser,
+		anyCluster:       v.anyCluster,
+		anySubcluster:    v.anySubcluster,
+		allowsDeployment: v.deployments,
+	}
+
+	return verifyRawClaims(opts)
 }
 
 // VerifyOption specifies an additional verification step to be performed on an identity.
