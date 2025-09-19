@@ -61,7 +61,7 @@ func Example() {
 	)
 }
 
-func ExampleRenew() {
+func ExampleVerifyRenewIdentity() {
 	identity := os.Getenv("REPL_RENEWAL")
 	if identity == "" {
 		fmt.Println("Sorry, this repl does not yet have an identity (anonymous run?).")
