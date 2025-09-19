@@ -372,25 +372,36 @@ type VerifyTokenOpts struct {
 //
 // The optional options allow specifying additional verifications on the identity.
 func VerifyToken(opts VerifyTokenOpts) (*api.GovalReplIdentity, error) {
+	identity, _, err := VerifyTokenWithCertificate(opts)
+	return identity, err
+}
+
+// VerifyTokenWithCertificate verifies that the given `REPL_IDENTITY` value is
+// in fact signed by Goval's chain of authority, and addressed to the provided
+// audience (the `REPL_ID` of the recipient). Returns the identity and the
+// signing authority (a.k.a. the certificate).
+//
+// The options allow specifying additional verifications on the identity.
+func VerifyTokenWithCertificate(opts VerifyTokenOpts) (*api.GovalReplIdentity, *api.GovalSigningAuthority, error) {
 	v, bytes, _, err := verifyChain(opts.Message, opts.GetPubKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed verify message: %w", err)
+		return nil, nil, fmt.Errorf("failed verify message: %w", err)
 	}
 
 	signingAuthority, err := getSigningAuthority(opts.Message)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read body type: %w", err)
+		return nil, nil, fmt.Errorf("failed to read body type: %w", err)
 	}
 
 	var identity api.GovalReplIdentity
 
 	switch signingAuthority.GetVersion() {
 	case api.TokenVersion_BARE_REPL_TOKEN:
-		return nil, errors.New("wrong type of token provided")
+		return nil, nil, errors.New("wrong type of token provided")
 	case api.TokenVersion_TYPE_AWARE_TOKEN:
 		err = proto.Unmarshal(bytes, &identity)
 		if err != nil {
-			return nil, fmt.Errorf("failed to decode body: %w", err)
+			return nil, nil, fmt.Errorf("failed to decode body: %w", err)
 		}
 	}
 
@@ -402,32 +413,32 @@ func VerifyToken(opts VerifyTokenOpts) (*api.GovalReplIdentity, error) {
 		}
 	}
 	if !validAudience {
-		return nil, fmt.Errorf("message identity mismatch. expected %q, got %q", opts.Audience, identity.Aud)
+		return nil, nil, fmt.Errorf("message identity mismatch. expected %q, got %q", opts.Audience, identity.Aud)
 	}
 
 	err = v.checkClaimsAgainstToken(&identity)
 	if err != nil {
-		return nil, fmt.Errorf("claim mismatch: %w", err)
+		return nil, nil, fmt.Errorf("claim mismatch: %w", err)
 	}
 
 	if v.claims != nil {
 		for _, flag := range opts.Flags {
 			if _, ok := v.claims.Flags[flag]; !ok {
-				return nil, fmt.Errorf("token not authorized for flag %s", flag)
+				return nil, nil, fmt.Errorf("token not authorized for flag %s", flag)
 			}
 		}
 	} else if len(opts.Flags) > 0 {
-		return nil, fmt.Errorf("token not authorized for flags")
+		return nil, nil, fmt.Errorf("token not authorized for flags")
 	}
 
 	for _, option := range opts.Options {
 		err = option.verify(&identity)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
-	return &identity, nil
+	return &identity, signingAuthority, nil
 }
 
 type verifyRawClaimsOpts struct {
