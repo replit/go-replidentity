@@ -381,9 +381,9 @@ type VerifiedToken struct {
 	Certificate      *api.GovalCert
 }
 
-// VerifyToken verifies that the given `REPL_IDENTITY` value is in fact
-// signed by Goval's chain of authority, and addressed to the provided audience
-// (the `REPL_ID` of the recipient).
+// VerifyToken verifies that the given `REPL_IDENTITY` value is in fact signed
+// by Goval's chain of authority, and addressed to the provided audience (the
+// `REPL_ID` of the recipient). This is the preferred way of verifying tokens.
 //
 // The optional options allow specifying additional verifications on the identity.
 func VerifyToken(opts VerifyTokenOpts) (*VerifiedToken, error) {

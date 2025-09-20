@@ -1,6 +1,8 @@
 # Repl Identity
 
-Blog post on https://blog.replit.com coming soon!
+[![Go Reference](https://pkg.go.dev/badge/github.com/replit/go-replidentity.svg)](https://pkg.go.dev/github.com/replit/go-replidentity)
+
+Blog post: https://blog.replit.com/repl-identity
 
 Repl Identity stores a `REPL_IDENTITY` token in every Repl automatically. This
 token is a signed [PASETO](https://paseto.io) that includes verifiable repl
