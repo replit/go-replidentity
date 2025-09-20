@@ -338,7 +338,11 @@ func VerifyIdentity(message string, audience []string, getPubKey PubKeySource, o
 		Options:   options,
 		Flags:     []api.FlagClaim{api.FlagClaim_IDENTITY},
 	}
-	return VerifyToken(opts)
+	verified, err := VerifyToken(opts)
+	if err != nil {
+		return nil, err
+	}
+	return verified.Identity, nil
 }
 
 // VerifyRenewIdentity verifies that the given `REPL_RENEWAL` value is in fact
@@ -355,7 +359,11 @@ func VerifyRenewIdentity(message string, audience []string, getPubKey PubKeySour
 		Options:   options,
 		Flags:     []api.FlagClaim{api.FlagClaim_RENEW_IDENTITY},
 	}
-	return VerifyToken(opts)
+	verified, err := VerifyToken(opts)
+	if err != nil {
+		return nil, err
+	}
+	return verified.Identity, nil
 }
 
 type VerifyTokenOpts struct {
@@ -366,42 +374,38 @@ type VerifyTokenOpts struct {
 	Flags     []api.FlagClaim
 }
 
+// VerifiedToken is the result of verifying a token.
+type VerifiedToken struct {
+	Identity         *api.GovalReplIdentity
+	SigningAuthority *api.GovalSigningAuthority
+	Certificate      *api.GovalCert
+}
+
 // VerifyToken verifies that the given `REPL_IDENTITY` value is in fact
 // signed by Goval's chain of authority, and addressed to the provided audience
 // (the `REPL_ID` of the recipient).
 //
 // The optional options allow specifying additional verifications on the identity.
-func VerifyToken(opts VerifyTokenOpts) (*api.GovalReplIdentity, error) {
-	identity, _, err := VerifyTokenWithCertificate(opts)
-	return identity, err
-}
-
-// VerifyTokenWithCertificate verifies that the given `REPL_IDENTITY` value is
-// in fact signed by Goval's chain of authority, and addressed to the provided
-// audience (the `REPL_ID` of the recipient). Returns the identity and the
-// signing authority (a.k.a. the certificate).
-//
-// The options allow specifying additional verifications on the identity.
-func VerifyTokenWithCertificate(opts VerifyTokenOpts) (*api.GovalReplIdentity, *api.GovalSigningAuthority, error) {
-	v, bytes, _, err := verifyChain(opts.Message, opts.GetPubKey)
+func VerifyToken(opts VerifyTokenOpts) (*VerifiedToken, error) {
+	v, bytes, cert, err := verifyChain(opts.Message, opts.GetPubKey)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed verify message: %w", err)
+		return nil, fmt.Errorf("failed verify message: %w", err)
 	}
 
 	signingAuthority, err := getSigningAuthority(opts.Message)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to read body type: %w", err)
+		return nil, fmt.Errorf("failed to read body type: %w", err)
 	}
 
 	var identity api.GovalReplIdentity
 
 	switch signingAuthority.GetVersion() {
 	case api.TokenVersion_BARE_REPL_TOKEN:
-		return nil, nil, errors.New("wrong type of token provided")
+		return nil, errors.New("wrong type of token provided")
 	case api.TokenVersion_TYPE_AWARE_TOKEN:
 		err = proto.Unmarshal(bytes, &identity)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to decode body: %w", err)
+			return nil, fmt.Errorf("failed to decode body: %w", err)
 		}
 	}
 
@@ -413,32 +417,36 @@ func VerifyTokenWithCertificate(opts VerifyTokenOpts) (*api.GovalReplIdentity, *
 		}
 	}
 	if !validAudience {
-		return nil, nil, fmt.Errorf("message identity mismatch. expected %q, got %q", opts.Audience, identity.Aud)
+		return nil, fmt.Errorf("message identity mismatch. expected %q, got %q", opts.Audience, identity.Aud)
 	}
 
 	err = v.checkClaimsAgainstToken(&identity)
 	if err != nil {
-		return nil, nil, fmt.Errorf("claim mismatch: %w", err)
+		return nil, fmt.Errorf("claim mismatch: %w", err)
 	}
 
 	if v.claims != nil {
 		for _, flag := range opts.Flags {
 			if _, ok := v.claims.Flags[flag]; !ok {
-				return nil, nil, fmt.Errorf("token not authorized for flag %s", flag)
+				return nil, fmt.Errorf("token not authorized for flag %s", flag)
 			}
 		}
 	} else if len(opts.Flags) > 0 {
-		return nil, nil, fmt.Errorf("token not authorized for flags")
+		return nil, fmt.Errorf("token not authorized for flags")
 	}
 
 	for _, option := range opts.Options {
 		err = option.verify(&identity)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 	}
 
-	return &identity, signingAuthority, nil
+	return &VerifiedToken{
+		Identity:         &identity,
+		SigningAuthority: signingAuthority,
+		Certificate:      cert,
+	}, nil
 }
 
 type verifyRawClaimsOpts struct {
