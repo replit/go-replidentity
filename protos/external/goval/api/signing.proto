@@ -295,4 +295,7 @@ message Org {
 
   string id = 1;
   OrgType type = 2;
+  string slug = 3;
+  // Whether this org has an enterprise deal
+  bool is_enterprise = 4;
 }
