@@ -106,6 +106,25 @@ func (a *SigningAuthority) Sign(audience string) (string, error) {
 	return token, nil
 }
 
+// SignMinimal generates a minimal identity token with only Replid and Aud fields.
+// This is useful for SSH authentication where tokens must be under 1024 bytes
+// (OpenSSH password length limit). The minimal token is sufficient for SSH authentication
+// as the SSH proxy only needs to verify the Replid claim.
+func (a *SigningAuthority) SignMinimal(audience string) (string, error) {
+	// Create minimal identity with only Replid and Aud
+	replIdentity := api.GovalReplIdentity{
+		Replid: a.identity.Replid,
+		Aud:    audience,
+	}
+
+	token, err := signIdentity(a.privateKey, a.signingAuthority, &replIdentity)
+	if err != nil {
+		return "", fmt.Errorf("sign minimal identity: %w", err)
+	}
+
+	return token, nil
+}
+
 func signIdentity(
 	parentPrivateKey ed25519.PrivateKey,
 	parentAuthority *api.GovalSigningAuthority,

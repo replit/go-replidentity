@@ -84,6 +84,31 @@ func CreateIdentityTokenAddressedTo(audience string) (string, error) {
 	return identityToken, nil
 }
 
+// CreateMinimalIdentityTokenAddressedTo returns a minimal Replit identity token with only
+// Replid and Aud fields. This creates tokens under 1024 bytes, which is required for
+// SSH authentication (OpenSSH password length limit). The minimal token is sufficient
+// for SSH authentication as the SSH proxy only verifies the Replid claim.
+//
+// Use this instead of CreateIdentityTokenAddressedTo when authenticating to SSH with
+// username "git" or when the token will be passed as an SSH password via sshpass.
+func CreateMinimalIdentityTokenAddressedTo(audience string) (string, error) {
+	signingAuthority, err := CreateIdentityTokenSigningAuthority()
+	if err != nil {
+		return "", err
+	}
+
+	if signingAuthority == nil {
+		return "", fmt.Errorf("no signing authority could be created")
+	}
+
+	identityToken, err := signingAuthority.SignMinimal(audience)
+	if err != nil {
+		return "", err
+	}
+
+	return identityToken, nil
+}
+
 // Try to read from /tmp/replidentity and /tmp/replidentity.key,
 // falling back to the environment variables.
 func readIdentity() (string, string) {

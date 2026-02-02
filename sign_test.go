@@ -885,6 +885,93 @@ func TestIdentityWithOrgID(t *testing.T) {
 	assert.Equal(t, "acmecorp", replIdentity.Org.Id)
 }
 
+func TestSignMinimal(t *testing.T) {
+	privkey, identity, err := identityToken("repl", "user", 1, "slug")
+	require.NoError(t, err)
+
+	getPubKey := func(keyid, issuer string) (ed25519.PublicKey, error) {
+		if keyid != developmentKeyID {
+			return nil, nil
+		}
+		keyBytes, err := base64.StdEncoding.DecodeString(developmentPublicKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse public key as base64: %w", err)
+		}
+
+		return ed25519.PublicKey(keyBytes), nil
+	}
+
+	signingAuthority, err := NewSigningAuthority(
+		string(paserk.PrivateKeyToPASERKSecret(privkey)),
+		identity,
+		"repl",
+		getPubKey,
+	)
+	require.NoError(t, err)
+
+	// Create minimal token
+	minimalToken, err := signingAuthority.SignMinimal("testing")
+	require.NoError(t, err)
+
+	// Verify minimal token
+	replIdentity, err := VerifyIdentity(
+		minimalToken,
+		[]string{"testing"},
+		getPubKey,
+	)
+	require.NoError(t, err)
+
+	// Verify only Replid and Aud are set
+	assert.Equal(t, "repl", replIdentity.Replid)
+	assert.Equal(t, "testing", replIdentity.Aud)
+	// Other fields should be empty
+	assert.Equal(t, "", replIdentity.User)
+	assert.Equal(t, int64(0), replIdentity.UserId)
+	assert.Equal(t, "", replIdentity.Slug)
+
+	// Verify token size is small enough for SSH (< 1024 bytes)
+	assert.Less(t, len(minimalToken), 1024, "minimal token should be under 1024 bytes for OpenSSH")
+}
+
+func TestSignMinimalVsFullToken(t *testing.T) {
+	privkey, identity, err := identityToken("repl", "user", 1, "slug")
+	require.NoError(t, err)
+
+	getPubKey := func(keyid, issuer string) (ed25519.PublicKey, error) {
+		if keyid != developmentKeyID {
+			return nil, nil
+		}
+		keyBytes, err := base64.StdEncoding.DecodeString(developmentPublicKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse public key as base64: %w", err)
+		}
+
+		return ed25519.PublicKey(keyBytes), nil
+	}
+
+	signingAuthority, err := NewSigningAuthority(
+		string(paserk.PrivateKeyToPASERKSecret(privkey)),
+		identity,
+		"repl",
+		getPubKey,
+	)
+	require.NoError(t, err)
+
+	// Create both minimal and full tokens
+	minimalToken, err := signingAuthority.SignMinimal("testing")
+	require.NoError(t, err)
+
+	fullToken, err := signingAuthority.Sign("testing")
+	require.NoError(t, err)
+
+	// Minimal token should be significantly smaller
+	assert.Less(t, len(minimalToken), len(fullToken),
+		"minimal token should be smaller than full token")
+
+	t.Logf("Minimal token size: %d bytes", len(minimalToken))
+	t.Logf("Full token size: %d bytes", len(fullToken))
+}
+
 func TestIdentityWithOrgIDFail(t *testing.T) {
 	replID := "repl"
 	user := "user"
