@@ -123,8 +123,7 @@ const (
 	// the list explicitly enumerated by the other claims. If that list is empty,
 	// the cert has no ability to sign any tokens that have a subcluster.
 	FlagClaim_ANY_SUBCLUSTER FlagClaim = 9
-	// PROP-220: Cert authorizes child certs to include arbitrary
-	// CertificateClaim.repl_created_at values.
+	// PROP-220 wildcard for arbitrary CertificateClaim.repl_created_at values.
 	FlagClaim_ANY_REPL_CREATED_AT FlagClaim = 13
 )
 
@@ -544,9 +543,8 @@ type CertificateClaim_Flag struct {
 }
 
 type CertificateClaim_ReplCreatedAt struct {
-	// PROP-220: This cert binds the Repl's creation timestamp. The
-	// verifier checks that the identity body's `repl_created_at`
-	// matches this claim exactly. See goval#19555.
+	// PROP-220: chain-bound repl creation timestamp. The identity
+	// body's repl_created_at must match this claim exactly.
 	ReplCreatedAt *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=repl_created_at,json=replCreatedAt,proto3,oneof"`
 }
 
@@ -832,11 +830,7 @@ type GovalReplIdentity struct {
 	Runtime isGovalReplIdentity_Runtime `protobuf_oneof:"runtime"`
 	// The organization that owns the Repl
 	Org *Org `protobuf:"bytes,14,opt,name=org,proto3" json:"org,omitempty"`
-	// When the Repl was created. Optional — older mint paths leave this
-	// unset and downstream services treat absence the same way they
-	// treat a permissive default. Mirrors goval#19555 — added so the
-	// Vault repl-identity renewal handler can preserve the field when
-	// re-issuing identities.
+	// When the Repl was created. Optional. See PROP-220.
 	ReplCreatedAt *timestamppb.Timestamp `protobuf:"bytes,15,opt,name=repl_created_at,json=replCreatedAt,proto3" json:"repl_created_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
