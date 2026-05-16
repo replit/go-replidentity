@@ -98,6 +98,10 @@ enum FlagClaim {
   // the list explicitly enumerated by the other claims. If that list is empty,
   // the cert has no ability to sign any tokens that have a subcluster.
   ANY_SUBCLUSTER = 9;
+
+  // PROP-220: Cert authorizes child certs to include arbitrary
+  // CertificateClaim.repl_created_at values.
+  ANY_REPL_CREATED_AT = 13;
 }
 
 // Claims are actions that a cert is allowed to do. Claims can be repeated (e.g.
@@ -132,6 +136,10 @@ message CertificateClaim {
     // This cert has the authority to perform an action as described in
     // FlagClaim
     FlagClaim flag = 3;
+    // PROP-220: This cert binds the Repl's creation timestamp. The
+    // verifier checks that the identity body's `repl_created_at`
+    // matches this claim exactly. See goval#19555.
+    google.protobuf.Timestamp repl_created_at = 9;
   }
 }
 
@@ -248,6 +256,12 @@ message GovalReplIdentity {
   }
   // The organization that owns the Repl
   Org org = 14;
+  // When the Repl was created. Optional — older mint paths leave this
+  // unset and downstream services treat absence the same way they
+  // treat a permissive default. Mirrors goval#19555 — added so the
+  // Vault repl-identity renewal handler can preserve the field when
+  // re-issuing identities.
+  google.protobuf.Timestamp repl_created_at = 15;
 }
 
 // BuildInfo includes information about which deployment this repl is allowed to
