@@ -272,12 +272,14 @@ func (v *verifier) checkClaimsAgainstToken(token *api.GovalReplIdentity) error {
 	opts := verifyRawClaimsOpts{
 		replid:           token.Replid,
 		user:             token.User,
+		userID:           token.UserId,
 		cluster:          cluster,
 		subcluster:       subcluster,
 		deployment:       deployment,
 		claims:           v.claims,
 		anyReplid:        v.anyReplid,
 		anyUser:          v.anyUser,
+		anyUserID:        v.anyUserID,
 		anyCluster:       v.anyCluster,
 		anyOrg:           v.anyOrg,
 		anySubcluster:    v.anySubcluster,
@@ -452,12 +454,14 @@ func VerifyToken(opts VerifyTokenOpts) (*VerifiedToken, error) {
 type verifyRawClaimsOpts struct {
 	replid           string
 	user             string
+	userID           int64
 	cluster          string
 	subcluster       string
 	deployment       bool
 	claims           *MessageClaims
 	anyReplid        bool
 	anyUser          bool
+	anyUserID        bool
 	anyCluster       bool
 	anySubcluster    bool
 	anyOrg           bool
@@ -479,6 +483,12 @@ func verifyRawClaims(
 		if opts.user != "" && !opts.anyUser {
 			if _, ok := opts.claims.Users[opts.user]; !ok {
 				return errors.New("not authorized (user)")
+			}
+		}
+
+		if opts.userID != 0 && !opts.anyUserID {
+			if _, ok := opts.claims.UserIDs[opts.userID]; !ok {
+				return errors.New("not authorized (userId)")
 			}
 		}
 

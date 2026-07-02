@@ -592,6 +592,82 @@ func TestLayeredIdentity(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestUserIDClaim(t *testing.T) {
+	getPubKey := func(keyid, issuer string) (ed25519.PublicKey, error) {
+		if keyid != developmentKeyID {
+			return nil, nil
+		}
+		keyBytes, err := base64.StdEncoding.DecodeString(developmentPublicKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse public key as base64: %w", err)
+		}
+
+		return ed25519.PublicKey(keyBytes), nil
+	}
+
+	tests := []struct {
+		name    string
+		claim   *api.CertificateClaim
+		wantErr string
+	}{
+		{
+			name:    "mismatched user ID",
+			claim:   &api.CertificateClaim{Claim: &api.CertificateClaim_UserId{UserId: 1}},
+			wantErr: "claim mismatch: not authorized (userId)",
+		},
+		{
+			name:  "any user ID",
+			claim: &api.CertificateClaim{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_ANY_USER_ID}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			privateKey, identity, err := tokenWithClaims(
+				"repl",
+				"user",
+				1,
+				"slug",
+				"",
+				0,
+				[]*api.CertificateClaim{
+					{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_IDENTITY}},
+					{Claim: &api.CertificateClaim_Replid{Replid: "repl"}},
+					{Claim: &api.CertificateClaim_User{User: "user"}},
+					tt.claim,
+				},
+			)
+			require.NoError(t, err)
+
+			signingAuthority, err := NewSigningAuthority(
+				string(paserk.PrivateKeyToPASERKSecret(privateKey)),
+				identity,
+				"repl",
+				getPubKey,
+			)
+			require.NoError(t, err)
+
+			forged, err := signIdentity(privateKey, signingAuthority.signingAuthority, &api.GovalReplIdentity{
+				Replid: "repl",
+				User:   "user",
+				UserId: 2,
+				Slug:   "slug",
+				Aud:    "testing",
+			})
+			require.NoError(t, err)
+
+			verified, err := VerifyIdentity(forged, []string{"testing"}, getPubKey)
+			if tt.wantErr != "" {
+				require.EqualError(t, err, tt.wantErr)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, int64(2), verified.UserId)
+		})
+	}
+}
+
 func TestLayeredIdentityWithSpoofedCert(t *testing.T) {
 	privkey, identity, err := multiTierIdentityToken("repl", "user", 1, "slug")
 	require.NoError(t, err)
@@ -801,6 +877,7 @@ func TestRenewNoClaim(t *testing.T) {
 		[]*api.CertificateClaim{
 			{Claim: &api.CertificateClaim_Replid{Replid: "replid"}},
 			{Claim: &api.CertificateClaim_User{User: "user"}},
+			{Claim: &api.CertificateClaim_UserId{UserId: 1}},
 		},
 	)
 	require.NoError(t, err)
