@@ -85,17 +85,18 @@ func (s *SigningAuthority) String() string {
 // token to another repl and claim it came directly from you.
 func (a *SigningAuthority) Sign(audience string) (string, error) {
 	replIdentity := api.GovalReplIdentity{
-		Replid:       a.identity.Replid,
-		User:         a.identity.User,
-		Slug:         a.identity.Slug,
-		Aud:          audience,
-		OriginReplid: a.identity.OriginReplid,
-		UserId:       a.identity.UserId,
-		Org:          a.identity.Org,
-		BuildInfo:    a.identity.BuildInfo,
-		IsTeam:       a.identity.IsTeam,
-		Roles:        a.identity.Roles,
-		Runtime:      a.identity.Runtime,
+		Replid:        a.identity.Replid,
+		User:          a.identity.User,
+		Slug:          a.identity.Slug,
+		Aud:           audience,
+		OriginReplid:  a.identity.OriginReplid,
+		UserId:        a.identity.UserId,
+		Org:           a.identity.Org,
+		BuildInfo:     a.identity.BuildInfo,
+		IsTeam:        a.identity.IsTeam,
+		Roles:         a.identity.Roles,
+		Runtime:       a.identity.Runtime,
+		ReplCreatedAt: a.identity.ReplCreatedAt,
 	}
 
 	token, err := signIdentity(a.privateKey, a.signingAuthority, &replIdentity)

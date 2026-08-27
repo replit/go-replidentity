@@ -4,6 +4,7 @@ package replidentity
 import (
 	"encoding/base64"
 	"fmt"
+	"time"
 
 	"github.com/o1egl/paseto"
 	"golang.org/x/crypto/ed25519"
@@ -17,13 +18,14 @@ type PubKeySource func(keyid, issuer string) (ed25519.PublicKey, error)
 
 // MessageClaims is a collection of indexable claims that are made by a certificate.
 type MessageClaims struct {
-	Repls       map[string]struct{}
-	Users       map[string]struct{}
-	UserIDs     map[int64]struct{}
-	Orgs        map[OrgKey]struct{}
-	Clusters    map[string]struct{}
-	Subclusters map[string]struct{}
-	Flags       map[api.FlagClaim]struct{}
+	Repls          map[string]struct{}
+	Users          map[string]struct{}
+	UserIDs        map[int64]struct{}
+	Orgs           map[OrgKey]struct{}
+	Clusters       map[string]struct{}
+	Subclusters    map[string]struct{}
+	ReplCreatedAts map[time.Time]struct{}
+	Flags          map[api.FlagClaim]struct{}
 }
 
 type OrgKey struct {
@@ -37,13 +39,14 @@ func parseClaims(cert *api.GovalCert) *MessageClaims {
 	}
 
 	claims := MessageClaims{
-		Repls:       map[string]struct{}{},
-		Users:       map[string]struct{}{},
-		UserIDs:     map[int64]struct{}{},
-		Orgs:        map[OrgKey]struct{}{},
-		Clusters:    map[string]struct{}{},
-		Subclusters: map[string]struct{}{},
-		Flags:       map[api.FlagClaim]struct{}{},
+		Repls:          map[string]struct{}{},
+		Users:          map[string]struct{}{},
+		UserIDs:        map[int64]struct{}{},
+		Orgs:           map[OrgKey]struct{}{},
+		Clusters:       map[string]struct{}{},
+		Subclusters:    map[string]struct{}{},
+		ReplCreatedAts: map[time.Time]struct{}{},
+		Flags:          map[api.FlagClaim]struct{}{},
 	}
 
 	for _, claim := range cert.Claims {
@@ -69,6 +72,11 @@ func parseClaims(cert *api.GovalCert) *MessageClaims {
 
 		case *api.CertificateClaim_Subcluster:
 			claims.Subclusters[typedClaim.Subcluster] = struct{}{}
+
+		case *api.CertificateClaim_ReplCreatedAt:
+			if typedClaim.ReplCreatedAt != nil {
+				claims.ReplCreatedAts[typedClaim.ReplCreatedAt.AsTime()] = struct{}{}
+			}
 
 		case *api.CertificateClaim_Flag:
 			claims.Flags[typedClaim.Flag] = struct{}{}

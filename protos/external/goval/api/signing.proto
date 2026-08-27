@@ -87,6 +87,10 @@ enum FlagClaim {
   // cert has no ability to sign any tokens that have an org.
   ANY_ORG = 12;
 
+  // Cert has the authority to sign identity messages with any Repl creation
+  // timestamp.
+  ANY_REPL_CREATED_AT = 13;
+
   // Cert has the authority to sign ReplToken messages for any cluster. If this
   // claim is not set, the cert will only be able to emit tokens only for the
   // list explicitly enumerated by the other claims. If that list is empty, the
@@ -132,6 +136,9 @@ message CertificateClaim {
     // This cert has the authority to perform an action as described in
     // FlagClaim
     FlagClaim flag = 3;
+    // This cert has the authority to sign identity messages with this Repl
+    // creation timestamp.
+    google.protobuf.Timestamp repl_created_at = 9;
   }
 }
 
@@ -248,6 +255,8 @@ message GovalReplIdentity {
   }
   // The organization that owns the Repl
   Org org = 14;
+  // The time at which the Repl was created.
+  google.protobuf.Timestamp repl_created_at = 15;
 }
 
 // BuildInfo includes information about which deployment this repl is allowed to

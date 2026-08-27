@@ -86,6 +86,13 @@ func (v *verifier) verifyCert(certBytes []byte, signingCert *api.GovalCert) (*ap
 	if err != nil {
 		return nil, fmt.Errorf("cert is not valid: %w", err)
 	}
+	for _, claim := range cert.Claims {
+		if replCreatedAt := claim.GetReplCreatedAt(); replCreatedAt != nil {
+			if err := replCreatedAt.CheckValid(); err != nil {
+				return nil, fmt.Errorf("cert has invalid replCreatedAt claim: %w", err)
+			}
+		}
+	}
 
 	// If the parent cert is not the root cert
 	if signingCert != nil {
@@ -97,7 +104,7 @@ func (v *verifier) verifyCert(certBytes []byte, signingCert *api.GovalCert) (*ap
 
 		// Verify the cert claims agrees with its signer
 		authorizedClaims := map[string]struct{}{}
-		var anyReplid, anyUser, anyUserID, anyOrg, anyCluster, anySubcluster, deployments bool
+		var anyReplid, anyUser, anyUserID, anyOrg, anyCluster, anySubcluster, anyReplCreatedAt, deployments bool
 		for _, claim := range signingCert.Claims {
 			authorizedClaims[claim.String()] = struct{}{}
 			switch tc := claim.Claim.(type) {
@@ -113,6 +120,9 @@ func (v *verifier) verifyCert(certBytes []byte, signingCert *api.GovalCert) (*ap
 				}
 				if tc.Flag == api.FlagClaim_ANY_ORG {
 					anyOrg = true
+				}
+				if tc.Flag == api.FlagClaim_ANY_REPL_CREATED_AT {
+					anyReplCreatedAt = true
 				}
 				if tc.Flag == api.FlagClaim_ANY_CLUSTER {
 					anyCluster = true
@@ -172,6 +182,10 @@ func (v *verifier) verifyCert(certBytes []byte, signingCert *api.GovalCert) (*ap
 				}
 			case *api.CertificateClaim_Subcluster:
 				if anySubcluster {
+					continue
+				}
+			case *api.CertificateClaim_ReplCreatedAt:
+				if anyReplCreatedAt {
 					continue
 				}
 			case *api.CertificateClaim_Deployment:
@@ -250,10 +264,20 @@ func verifyChain(token string, getPubKey PubKeySource) (*verifier, []byte, *api.
 // checkClaimsAgainstToken ensures the claims match up with the token.
 // This ensures that the final token in the chain is not spoofed via the forwarding protection private key.
 func (v *verifier) checkClaimsAgainstToken(token *api.GovalReplIdentity) error {
-	// if the claims are nil, it means that the token was signed by the root privkey,
-	// which implicitly has all claims.
 	if v.claims == nil {
+		// repl_created_at is trusted only when a certificate claim binds it.
+		token.ReplCreatedAt = nil
 		return nil
+	}
+
+	if len(v.claims.ReplCreatedAts) == 0 {
+		token.ReplCreatedAt = nil
+	} else if token.ReplCreatedAt == nil {
+		return errors.New("not authorized (replCreatedAt)")
+	} else if err := token.ReplCreatedAt.CheckValid(); err != nil {
+		return fmt.Errorf("invalid replCreatedAt: %w", err)
+	} else if _, ok := v.claims.ReplCreatedAts[token.ReplCreatedAt.AsTime()]; !ok {
+		return errors.New("not authorized (replCreatedAt)")
 	}
 
 	var cluster, subcluster string
