@@ -77,6 +77,163 @@ func generateIntermediateCert(
 	}, nil
 }
 
+func replCreatedAtIdentityToken(
+	t *testing.T,
+	parentTimestampClaim *api.CertificateClaim,
+	childTimestampClaim *api.CertificateClaim,
+	replCreatedAt *timestamppb.Timestamp,
+) (string, PubKeySource) {
+	t.Helper()
+
+	rootPublicKey, rootPrivateKey, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	rootAuthority := &api.GovalSigningAuthority{
+		Cert:    &api.GovalSigningAuthority_KeyId{KeyId: "root"},
+		Version: api.TokenVersion_TYPE_AWARE_TOKEN,
+	}
+
+	parentClaims := []*api.CertificateClaim{
+		{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_SIGN_INTERMEDIATE_CERT}},
+		{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_IDENTITY}},
+		{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_ANY_REPLID}},
+		{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_ANY_USER}},
+		{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_ANY_USER_ID}},
+	}
+	if parentTimestampClaim != nil {
+		parentClaims = append(parentClaims, parentTimestampClaim)
+	}
+	parentPrivateKey, parentAuthority, err := generateIntermediateCert(
+		rootPrivateKey,
+		rootAuthority,
+		parentClaims,
+		"parent",
+		time.Hour,
+	)
+	require.NoError(t, err)
+
+	childClaims := []*api.CertificateClaim{
+		{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_IDENTITY}},
+		{Claim: &api.CertificateClaim_Replid{Replid: "repl"}},
+		{Claim: &api.CertificateClaim_User{User: "user"}},
+		{Claim: &api.CertificateClaim_UserId{UserId: 1}},
+	}
+	if childTimestampClaim != nil {
+		childClaims = append(childClaims, childTimestampClaim)
+	}
+	childPrivateKey, childAuthority, err := generateIntermediateCert(
+		parentPrivateKey,
+		parentAuthority,
+		childClaims,
+		"child",
+		time.Hour,
+	)
+	require.NoError(t, err)
+
+	token, err := signIdentity(childPrivateKey, childAuthority, &api.GovalReplIdentity{
+		Replid:        "repl",
+		User:          "user",
+		UserId:        1,
+		Aud:           "audience",
+		ReplCreatedAt: replCreatedAt,
+	})
+	require.NoError(t, err)
+
+	return token, func(keyid, issuer string) (ed25519.PublicKey, error) {
+		if keyid != "root" {
+			return nil, fmt.Errorf("unknown key %q", keyid)
+		}
+		return rootPublicKey, nil
+	}
+}
+
+func TestReplCreatedAtVerification(t *testing.T) {
+	replCreatedAt := timestamppb.New(time.Date(2024, time.January, 2, 3, 4, 5, 6, time.UTC))
+	exactClaim := func(timestamp *timestamppb.Timestamp) *api.CertificateClaim {
+		return &api.CertificateClaim{
+			Claim: &api.CertificateClaim_ReplCreatedAt{ReplCreatedAt: timestamp},
+		}
+	}
+	anyClaim := &api.CertificateClaim{
+		Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_ANY_REPL_CREATED_AT},
+	}
+
+	tests := []struct {
+		name                 string
+		parentTimestampClaim *api.CertificateClaim
+		childTimestampClaim  *api.CertificateClaim
+		bodyTimestamp        *timestamppb.Timestamp
+		wantTimestamp        *timestamppb.Timestamp
+		wantErr              string
+	}{
+		{
+			name:                 "exact claim",
+			parentTimestampClaim: exactClaim(replCreatedAt),
+			childTimestampClaim:  exactClaim(replCreatedAt),
+			bodyTimestamp:        replCreatedAt,
+			wantTimestamp:        replCreatedAt,
+		},
+		{
+			name:                 "backdated body",
+			parentTimestampClaim: exactClaim(replCreatedAt),
+			childTimestampClaim:  exactClaim(replCreatedAt),
+			bodyTimestamp:        timestamppb.New(replCreatedAt.AsTime().Add(-time.Hour)),
+			wantErr:              "claim mismatch: not authorized (replCreatedAt)",
+		},
+		{
+			name:                 "parent exact claim mismatch",
+			parentTimestampClaim: exactClaim(replCreatedAt),
+			childTimestampClaim:  exactClaim(timestamppb.New(replCreatedAt.AsTime().Add(time.Hour))),
+			bodyTimestamp:        replCreatedAt,
+			wantErr:              "does not authorize claim",
+		},
+		{
+			name:                 "parent wildcard",
+			parentTimestampClaim: anyClaim,
+			childTimestampClaim:  exactClaim(replCreatedAt),
+			bodyTimestamp:        replCreatedAt,
+			wantTimestamp:        replCreatedAt,
+		},
+		{
+			name:                 "leaf wildcard does not bind body",
+			parentTimestampClaim: anyClaim,
+			childTimestampClaim:  anyClaim,
+			bodyTimestamp:        replCreatedAt,
+		},
+		{
+			name:                "wildcard requires parent authorization",
+			childTimestampClaim: anyClaim,
+			bodyTimestamp:       replCreatedAt,
+			wantErr:             "does not authorize claim",
+		},
+		{
+			name: "old token",
+		},
+		{
+			name:          "unbound body omitted",
+			bodyTimestamp: replCreatedAt,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			token, getPubKey := replCreatedAtIdentityToken(
+				t,
+				tt.parentTimestampClaim,
+				tt.childTimestampClaim,
+				tt.bodyTimestamp,
+			)
+			identity, err := VerifyIdentity(token, []string{"audience"}, getPubKey)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.True(t, proto.Equal(tt.wantTimestamp, identity.ReplCreatedAt))
+		})
+	}
+}
+
 // identityToken generates and returns a signed identity (plus a private key)
 // for the given repl metadata, both can then be used to sign further identity
 // tokens. Other repls can verify this identity to verify a client is a
