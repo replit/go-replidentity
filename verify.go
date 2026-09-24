@@ -97,13 +97,16 @@ func (v *verifier) verifyCert(certBytes []byte, signingCert *api.GovalCert) (*ap
 
 		// Verify the cert claims agrees with its signer
 		authorizedClaims := map[string]struct{}{}
-		var anyReplid, anyUser, anyUserID, anyOrg, anyCluster, anySubcluster, deployments bool
+		var anyReplid, anyOriginReplid, anyUser, anyUserID, anyOrg, anyCluster, anySubcluster, deployments bool
 		for _, claim := range signingCert.Claims {
 			authorizedClaims[claim.String()] = struct{}{}
 			switch tc := claim.Claim.(type) {
 			case *api.CertificateClaim_Flag:
 				if tc.Flag == api.FlagClaim_ANY_REPLID {
 					anyReplid = true
+				}
+				if tc.Flag == api.FlagClaim_ANY_ORIGIN_REPLID {
+					anyOriginReplid = true
 				}
 				if tc.Flag == api.FlagClaim_ANY_USER {
 					anyUser = true
@@ -128,6 +131,10 @@ func (v *verifier) verifyCert(certBytes []byte, signingCert *api.GovalCert) (*ap
 
 		for _, claim := range cert.Claims {
 			switch tc := claim.Claim.(type) {
+			case *api.CertificateClaim_OriginReplid:
+				if anyOriginReplid {
+					continue
+				}
 			case *api.CertificateClaim_Flag:
 				if tc.Flag == api.FlagClaim_ANY_REPLID {
 					v.anyReplid = true
@@ -180,7 +187,7 @@ func (v *verifier) verifyCert(certBytes []byte, signingCert *api.GovalCert) (*ap
 				}
 			}
 			if _, ok := authorizedClaims[claim.String()]; !ok {
-				return nil, fmt.Errorf("signing cert {%+v} does not authorize claim in {%+v}: %s", signingCert, cert, claim)
+				return nil, fmt.Errorf("signing cert {%+v} does not authorize claim in {%+v}: %s", signingCert, &cert, claim)
 			}
 		}
 	}
