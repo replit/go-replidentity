@@ -270,6 +270,9 @@ message BuildInfo {
 
   // Tier refers to the GCE machine tier that will be used for the build
   string machine_tier = 4;
+
+  // The canonical Repl ID this build acts on behalf of.
+  string origin_repl_id = 5;
 }
 
 message ReplRuntimeInteractive {
