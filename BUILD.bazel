@@ -39,6 +39,7 @@ go_test(
     name = "go-replidentity_test",
     srcs = [
         "identity_test.go",
+        "origin_replid_test.go",
         "sign_test.go",
     ],
     embed = [":go-replidentity"],
