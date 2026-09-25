@@ -98,6 +98,9 @@ enum FlagClaim {
   // the list explicitly enumerated by the other claims. If that list is empty,
   // the cert has no ability to sign any tokens that have a subcluster.
   ANY_SUBCLUSTER = 9;
+
+  // Cert can authorize child certs for any origin Repl ID.
+  ANY_ORIGIN_REPLID = 14;
 }
 
 // Claims are actions that a cert is allowed to do. Claims can be repeated (e.g.
@@ -132,6 +135,8 @@ message CertificateClaim {
     // This cert has the authority to perform an action as described in
     // FlagClaim
     FlagClaim flag = 3;
+    // This cert has the authority to assert this origin Repl ID.
+    string origin_replid = 10;
   }
 }
 
