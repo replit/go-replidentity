@@ -1,6 +1,8 @@
 package replidentity
 
 import (
+	"crypto/ed25519"
+	"crypto/rand"
 	"testing"
 	"time"
 
@@ -104,6 +106,86 @@ func TestOriginReplIDCertificateDelegation(t *testing.T) {
 				require.Equal(t, parseClaims(child), v.claims)
 			} else {
 				require.ErrorContains(t, err, "does not authorize claim")
+			}
+		})
+	}
+}
+
+// verifyOriginToken mints an identity whose body claims bodyOrigin under a
+// certificate carrying extraClaims, and returns the verification error (nil
+// on success). The chain is root key -> intermediate -> leaf, matching
+// production: only non-root-signed certs have their any-* flags honored.
+func verifyOriginToken(t *testing.T, extraClaims []*api.CertificateClaim, bodyOrigin string) error {
+	t.Helper()
+
+	rootPublicKey, rootPrivateKey, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	rootAuthority := &api.GovalSigningAuthority{
+		Issuer: "test",
+		Cert:   &api.GovalSigningAuthority_KeyId{KeyId: "origin-test:1"},
+	}
+
+	midPrivateKey, midAuthority, err := generateIntermediateCert(rootPrivateKey, rootAuthority, []*api.CertificateClaim{
+		{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_SIGN_INTERMEDIATE_CERT}},
+		{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_IDENTITY}},
+		{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_ANY_REPLID}},
+		{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_ANY_USER}},
+		{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_ANY_USER_ID}},
+		{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_ANY_ORIGIN_REPLID}},
+	}, "test", time.Hour)
+	require.NoError(t, err)
+
+	claims := append([]*api.CertificateClaim{
+		{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_IDENTITY}},
+		{Claim: &api.CertificateClaim_Replid{Replid: "repl"}},
+		{Claim: &api.CertificateClaim_User{User: "user"}},
+		{Claim: &api.CertificateClaim_UserId{UserId: 1}},
+	}, extraClaims...)
+	leafPriv, leafAuthority, err := generateIntermediateCert(midPrivateKey, midAuthority, claims, "test", time.Hour)
+	require.NoError(t, err)
+
+	identity := api.GovalReplIdentity{
+		Replid:       "repl",
+		User:         "user",
+		UserId:       1,
+		Slug:         "slug",
+		Aud:          "aud",
+		OriginReplid: bodyOrigin,
+	}
+	token, err := signIdentity(leafPriv, leafAuthority, &identity)
+	require.NoError(t, err)
+
+	_, err = VerifyIdentity(token, []string{"aud"}, func(keyid, issuer string) (ed25519.PublicKey, error) {
+		return rootPublicKey, nil
+	})
+	return err
+}
+
+func TestOriginReplIDBodyBinding(t *testing.T) {
+	originClaim := &api.CertificateClaim{Claim: &api.CertificateClaim_OriginReplid{OriginReplid: "source"}}
+	anyOrigin := &api.CertificateClaim{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_ANY_ORIGIN_REPLID}}
+
+	for _, tc := range []struct {
+		name        string
+		claims      []*api.CertificateClaim
+		bodyOrigin  string
+		errContains string
+	}{
+		// The vulnerability: a repl signs a token whose body claims an origin
+		// its certificate never authorized.
+		{"uncertified origin rejected", nil, "evil", "not authorized (originReplid)"},
+		{"different origin rejected", []*api.CertificateClaim{originClaim}, "other", "not authorized (originReplid)"},
+		{"certified origin accepted", []*api.CertificateClaim{originClaim}, "source", ""},
+		{"any origin accepts any", []*api.CertificateClaim{anyOrigin}, "anything", ""},
+		{"legacy cert with no body origin", nil, "", ""},
+		{"certified origin with empty body origin", []*api.CertificateClaim{originClaim}, "", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := verifyOriginToken(t, tc.claims, tc.bodyOrigin)
+			if tc.errContains == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, tc.errContains)
 			}
 		})
 	}

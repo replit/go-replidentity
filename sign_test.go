@@ -20,6 +20,7 @@ import (
 
 const (
 	developmentKeyID     = "dev:1"
+	originTestKeyID      = "origin-test:1"
 	developmentPublicKey = "on0FkSmEC+ce40V9Vc4QABXSx6TXo+lhp99b6Ka0gro="
 	conmanPrivateKey     = "mRe4Bu9PG4Tq52M6LXp2oRcljhOjhJ43+x4AjPsPHaOkImeb6EduKRzVok/pADoVeNa8XEWAbly+Wipo7qPM4Q=="
 	conmanCertificate    = "GAEiBmNvbm1hbhLrAnYyLnB1YmxpYy5RMmR6U1d0TGRqZHpRVmxSTlhJMk0xWkNTVXhEU2k5dU1qVkJVMFZKVEVSME1WRmhRV2huUWtkblNWbENVbTlEUjBGallVRm9aMHRIWjBsM1FWSnZRMGRCU1dGQmFHZEVSMmRKV1VONGIwTkhRWGRoUkZOSlRGcEhWakphVjNoMlkwY3hiR0p1VVdsT1YzTjVURzVDTVZsdGVIQlplVFYzVVRCd2RXSlRNVzlUUjBwd1lUSk5lRmxWY0ZGT2JFWkNUbXRhV1dGc1pESlNibWhIV2pCak1Wa3pXbk5pTTBab1ZIcGFjV1ZyT1VaZ29sMmlPZkRIQ3pNSEF1SFJBM2F5MlRRZVV0SU1ySzN5VHNzVC1HcUM0ekl4a3NFRmVTc0hWbFlTSVlOOTkyd0diY1pyQW0zM1RrOHJ0UFZvWll3Ry5SMEZGYVVKdFRuWmliVEZvWW1kdlJscEhWakpQYWtVOQ=="
@@ -221,7 +222,7 @@ func identityTokenWithOrigin(
 	userID int64,
 	slug string,
 	originID string,
-) (ed25519.PrivateKey, string, error) {
+) (ed25519.PrivateKey, ed25519.PublicKey, string, error) {
 	replIdentity := api.GovalReplIdentity{
 		Replid:       replID,
 		User:         user,
@@ -231,43 +232,42 @@ func identityTokenWithOrigin(
 		OriginReplid: originID,
 	}
 
-	var conmanAuthority api.GovalSigningAuthority
-	conmanDecodedCertificate, err := base64.StdEncoding.DecodeString(conmanCertificate)
+	// The baked conman certificate predates origin claims and does not carry
+	// ANY_ORIGIN_REPLID, so it cannot authorize origin claims downstream.
+	// Root the chain at a fresh test key instead: certs signed directly by a
+	// root key skip claim agreement, matching how root-issued certs behave.
+	rootPublicKey, rootPrivateKey, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
-		return nil, "", fmt.Errorf("decode base64 identity: %w", err)
+		return nil, nil, "", fmt.Errorf("generate root key: %w", err)
 	}
-	err = proto.Unmarshal(conmanDecodedCertificate, &conmanAuthority)
-	if err != nil {
-		return nil, "", fmt.Errorf("unmarshal identity: %w", err)
+	rootAuthority := &api.GovalSigningAuthority{
+		Issuer: "test",
+		Cert:   &api.GovalSigningAuthority_KeyId{KeyId: originTestKeyID},
 	}
-	conmanDecodedPrivateKey, err := base64.StdEncoding.DecodeString(conmanPrivateKey)
-	if err != nil {
-		return nil, "", fmt.Errorf("decode base64 private key: %w", err)
-	}
-	conmanPrivateKey := ed25519.PrivateKey(conmanDecodedPrivateKey)
 
 	intermediatePrivateKey, intermediateAuthority, err := generateIntermediateCert(
-		conmanPrivateKey,
-		&conmanAuthority,
+		rootPrivateKey,
+		rootAuthority,
 		[]*api.CertificateClaim{
 			{Claim: &api.CertificateClaim_Flag{Flag: api.FlagClaim_IDENTITY}},
 			{Claim: &api.CertificateClaim_Replid{Replid: replIdentity.Replid}},
 			{Claim: &api.CertificateClaim_User{User: replIdentity.User}},
 			{Claim: &api.CertificateClaim_UserId{UserId: replIdentity.UserId}},
+			{Claim: &api.CertificateClaim_OriginReplid{OriginReplid: originID}},
 		},
-		"conman",
+		"test",
 		36*time.Hour, // Repls can not live for more than 20-ish hours at the moment.
 	)
 	if err != nil {
-		return nil, "", fmt.Errorf("generate intermediate identity cert: %w", err)
+		return nil, nil, "", fmt.Errorf("generate intermediate identity cert: %w", err)
 	}
 
 	token, err := signIdentity(intermediatePrivateKey, intermediateAuthority, &replIdentity)
 	if err != nil {
-		return nil, "", fmt.Errorf("sign identity: %w", err)
+		return nil, nil, "", fmt.Errorf("sign identity: %w", err)
 	}
 
-	return intermediatePrivateKey, token, nil
+	return intermediatePrivateKey, rootPublicKey, token, nil
 }
 
 // identityTokenAnyRepl creates an identity token that allows for any replid
@@ -497,19 +497,14 @@ func TestNoIdentityClaim(t *testing.T) {
 }
 
 func TestOriginIdentity(t *testing.T) {
-	privkey, identity, err := identityTokenWithOrigin("repl", "user", 1, "slug", "origin")
+	privkey, rootPubKey, identity, err := identityTokenWithOrigin("repl", "user", 1, "slug", "origin")
 	require.NoError(t, err)
 
 	getPubKey := func(keyid, issuer string) (ed25519.PublicKey, error) {
-		if keyid != developmentKeyID {
+		if keyid != originTestKeyID {
 			return nil, nil
 		}
-		keyBytes, err := base64.StdEncoding.DecodeString(developmentPublicKey)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse public key as base64: %w", err)
-		}
-
-		return ed25519.PublicKey(keyBytes), nil
+		return rootPubKey, nil
 	}
 
 	signingAuthority, err := NewSigningAuthority(
