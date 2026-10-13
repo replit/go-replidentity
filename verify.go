@@ -20,13 +20,14 @@ type verifier struct {
 	claims *MessageClaims
 
 	// signing certs can allow "any *" variants
-	anyReplid     bool
-	anyUser       bool
-	anyUserID     bool
-	anyOrg        bool
-	anyCluster    bool
-	anySubcluster bool
-	deployments   bool
+	anyReplid       bool
+	anyOriginReplid bool
+	anyUser         bool
+	anyUserID       bool
+	anyOrg          bool
+	anyCluster      bool
+	anySubcluster   bool
+	deployments     bool
 }
 
 func (v *verifier) verifyToken(token string, pubkey ed25519.PublicKey) ([]byte, error) {
@@ -134,6 +135,9 @@ func (v *verifier) verifyCert(certBytes []byte, signingCert *api.GovalCert) (*ap
 			case *api.CertificateClaim_Flag:
 				if tc.Flag == api.FlagClaim_ANY_REPLID {
 					v.anyReplid = true
+				}
+				if tc.Flag == api.FlagClaim_ANY_ORIGIN_REPLID {
+					v.anyOriginReplid = true
 				}
 				if tc.Flag == api.FlagClaim_ANY_USER {
 					v.anyUser = true
@@ -278,6 +282,7 @@ func (v *verifier) checkClaimsAgainstToken(token *api.GovalReplIdentity) error {
 
 	opts := verifyRawClaimsOpts{
 		replid:           token.Replid,
+		originReplid:     token.OriginReplid,
 		user:             token.User,
 		userID:           token.UserId,
 		cluster:          cluster,
@@ -285,6 +290,7 @@ func (v *verifier) checkClaimsAgainstToken(token *api.GovalReplIdentity) error {
 		deployment:       deployment,
 		claims:           v.claims,
 		anyReplid:        v.anyReplid,
+		anyOriginReplid:  v.anyOriginReplid,
 		anyUser:          v.anyUser,
 		anyUserID:        v.anyUserID,
 		anyCluster:       v.anyCluster,
@@ -460,6 +466,7 @@ func VerifyToken(opts VerifyTokenOpts) (*VerifiedToken, error) {
 
 type verifyRawClaimsOpts struct {
 	replid           string
+	originReplid     string
 	user             string
 	userID           int64
 	cluster          string
@@ -467,6 +474,7 @@ type verifyRawClaimsOpts struct {
 	deployment       bool
 	claims           *MessageClaims
 	anyReplid        bool
+	anyOriginReplid  bool
 	anyUser          bool
 	anyUserID        bool
 	anyCluster       bool
@@ -484,6 +492,12 @@ func verifyRawClaims(
 		if opts.replid != "" && !opts.anyReplid {
 			if _, ok := opts.claims.Repls[opts.replid]; !ok {
 				return errors.New("not authorized (replid)")
+			}
+		}
+
+		if opts.originReplid != "" && !opts.anyOriginReplid {
+			if _, ok := opts.claims.OriginRepls[opts.originReplid]; !ok {
+				return errors.New("not authorized (originReplid)")
 			}
 		}
 
