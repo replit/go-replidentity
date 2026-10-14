@@ -303,15 +303,15 @@ func (v *verifier) checkClaimsAgainstToken(token *api.GovalReplIdentity) error {
 
 // VerifyOption specifies an additional verification step to be performed on an identity.
 type VerifyOption interface {
-	verify(*api.GovalReplIdentity) error
+	verify(*VerifiedToken) error
 }
 
 type funcVerifyOption struct {
 	f func(identity *api.GovalReplIdentity) error
 }
 
-func (o *funcVerifyOption) verify(identity *api.GovalReplIdentity) error {
-	return o.f(identity)
+func (o *funcVerifyOption) verify(token *VerifiedToken) error {
+	return o.f(token.Identity)
 }
 
 // WithVerify allows the caller to specify an arbitrary function to perform
@@ -444,18 +444,19 @@ func VerifyToken(opts VerifyTokenOpts) (*VerifiedToken, error) {
 		return nil, fmt.Errorf("token not authorized for flags")
 	}
 
+	verified := &VerifiedToken{
+		Identity:         &identity,
+		SigningAuthority: signingAuthority,
+		Certificate:      cert,
+	}
 	for _, option := range opts.Options {
-		err = option.verify(&identity)
+		err = option.verify(verified)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	return &VerifiedToken{
-		Identity:         &identity,
-		SigningAuthority: signingAuthority,
-		Certificate:      cert,
-	}, nil
+	return verified, nil
 }
 
 type verifyRawClaimsOpts struct {
