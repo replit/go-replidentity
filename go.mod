@@ -5,7 +5,7 @@ go 1.24.0
 toolchain go1.24.7
 
 require (
-	filippo.io/edwards25519 v1.1.0
+	filippo.io/edwards25519 v1.1.1
 	github.com/o1egl/paseto v1.0.0
 	github.com/stretchr/testify v1.8.0
 	golang.org/x/crypto v0.45.0
